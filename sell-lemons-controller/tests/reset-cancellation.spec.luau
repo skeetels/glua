@@ -5,6 +5,7 @@ local function fixture()
     for _,name in ipairs({'config','core/Numeric','adapters/GuiAccess','runtime/Confirmation'})do
         local initialize=require('../src/'..name);setfenv(initialize,mock.env);initialize(c)
     end
+    c.CONFIG.AutoEvolution=true;c.CONFIG.HaloSprint=false
     c.BN=c.Core.BN
     local time=0;c.now=function()return time end
     local function node(kind,name,parent,text)
@@ -74,3 +75,5 @@ do
     assert(r.lastResetExecution.stage=='unresolved','a failed cancellation must never claim BUY resumed')
 end
 print('PASS cancellation failure preserves the paused error and unresolved execution stage')
+
+

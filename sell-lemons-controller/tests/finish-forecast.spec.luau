@@ -1,5 +1,5 @@
 local function fixture()
-    local c={};require('../src/config')(c);require('../src/core/Numeric')(c)
+    local c={};require('../src/config')(c);c.CONFIG.AutoEvolution=true;c.CONFIG.HaloSprint=false;require('../src/core/Numeric')(c)
     require('../src/core/HaloPlanner')(c);require('../src/core/EconomyPlanner')(c)
     local B=c.Core.BN;c.BN=B
     local state={time=100,money=B.new(1),rate=B.new(1),logs={},resets=0}
@@ -290,3 +290,4 @@ test('ready evolution has its own scheduler even with zero work, recovery or reb
     assert(not c.HaloRun.objectiveWatch() and s.resets==0)
 end)
 print('PASS '..n..' forecast and scheduling regression groups')
+

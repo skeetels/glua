@@ -376,6 +376,11 @@ function __slctx.Strategy.waitGrowth()
 end
 function __slctx.Strategy.resetAllowed(inv)
     local r=__slctx.Strategy.route()
+    if __slctx.CONFIG.HaloSprint and __slctx.GoalDirector then
+        local complete,why=__slctx.GoalDirector.sprintComplete()
+        if complete==nil then return false,why end
+        if complete then return false,'HALO_REBIRTH_QUOTA_REACHED' end
+    end
     if r.resetIntent then return __slctx.Strategy.validateResetIntent(inv) end
     -- Refresh non-spending observations before taking a new snapshot. Do not reset
     -- the collector or navigate just to make its timestamp look new.

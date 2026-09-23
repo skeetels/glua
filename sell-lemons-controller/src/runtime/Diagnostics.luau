@@ -1,7 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 function __slctx.API.report()
-    local report={'SELL LEMONS CONTROLLER 4.0.19 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
+    local report={'SELL LEMONS CONTROLLER 4.0.20 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
         'Status='..__slctx.S.code..' | '..__slctx.S.status,'Cash='..__slctx.t(__slctx.paths.balance),
         'Last error='..__slctx.S.lastError,'firesignal tested='..tostring(__slctx.Driver.fire~=nil),
         'getconnections tested='..tostring(__slctx.Driver.connections~=nil),
@@ -22,6 +22,9 @@ function __slctx.API.report()
     report[#report+1]='Target E'..tostring(r.evo and r.evo.index+1)..'='..__slctx.BN.format(r.target)..'; total minimum='..__slctx.BN.format(r.totalMinimum)..'; historical spending unknown='..tostring(r.spentUnknown)
     local goal=r.goalDecision;local d=goal and goal.detail
     report[#report+1]='Adaptive stands/Stack/rebirth='..tostring(__slctx.CONFIG.RepeatRebirth)..'; no mandatory full base or stand pass; phase='..tostring(r.phase)
+    report[#report+1]='Halo sprint='..tostring(__slctx.CONFIG.HaloSprint)..'; evolution enabled='..tostring(__slctx.CONFIG.AutoEvolution)
+        ..'; confirmed rebirths this cycle='..tostring(r.sprintCount)..'/'..tostring(__slctx.CONFIG.HaloSprintRebirths)
+        ..'; next='..tostring(__slctx.CONFIG.HaloSprint and r.sprintCount and r.sprintCount>=__slctx.CONFIG.HaloSprintRebirths and 'build Halo with parallel stands' or 'adaptive rebirth preparation')
     report[#report+1]='Goal director='..tostring(__slctx.CONFIG.GoalDirectedProgression)..'; choice='..tostring(goal and goal.choice)..'; continue ETA='..tostring(d and d.direct)..'; reset ETA='..tostring(d and d.reset)..'; observed prefix='..tostring(d and d.points)..'/'..tostring(d and d.totalPoints)..'; evolution minimum='..tostring(__slctx.CONFIG.EvolutionMinimumBank)
     for _,o in ipairs(d and d.options or {})do
         report[#report+1]='Tactical option='..o.kind..'; tier='..tostring(o.tier)..'; units='..tostring(o.units)
@@ -147,7 +150,7 @@ function __slctx.API.report()
     local base=__slctx.previousReport30();local h=__slctx.HaloRun.state();local f=h.forecast;local m=h.book.model
     local text,fraction,eta,progress=__slctx.HaloRun.progress()
     local economic=progress.economy or {}
-    local out={ '--- HALO ROUTE ECONOMY 4.0.19 ---',
+    local out={ '--- HALO ROUTE ECONOMY 4.0.20 ---',
         'HALO_MODE='..h.mode..'; halo='..tostring(h.book.halo)..'; evolution='..tostring(h.book.evolution),
         'HALO_READINESS fraction='..tostring(fraction)..'; type=route-income-capacity; bar is explicitly logarithmic, NOT percent of elapsed time',
         'REQUIRED_INCOME='..__slctx.BN.format(economic.requiredRate)..'; CURRENT_INCOME='..__slctx.BN.format(economic.currentRate)

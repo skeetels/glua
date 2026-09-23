@@ -73,7 +73,9 @@ __slctx.CONFIG = {
     EnableVirtualInput = true,
     ResetsEnabledAtStart = true,
     AllowInputPair = true,
-    AutoRebirth = true, AutoEvolution = true, AutoHalo = true,
+    AutoRebirth = true, AutoEvolution = false, AutoHalo = true,
+    HaloSprint = true, -- Two confirmed rebirths in the current Halo cycle, then finish the base.
+    HaloSprintRebirths = 2,
     TabletReserve = 400, -- Tablet purchase budget, not a prerequisite for evolution.
     EvolutionMinimumBank = 0, -- A ready evolution may start with any observed bonus.
     GoalDirectedProgression = true,

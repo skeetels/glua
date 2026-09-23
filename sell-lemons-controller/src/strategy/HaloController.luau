@@ -427,7 +427,7 @@ function __slctx.HaloRun.deferEvolution(refresh)
 end
 function __slctx.HaloRun.routeEvolutionChoice(inv,evo,goal,yes,detail)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state();local v=h.economy
-    if not evo or not evo.ready then return 'PREPARE' end
+    if not __slctx.CONFIG.AutoEvolution or not evo or not evo.ready then return 'PREPARE' end
     if h.mode=='FINISH' then return 'FINISH' end
     if __slctx.HaloRun.deferEvolution(false) then return 'CONTINUE' end
     -- Avoid destroying a finish-capable bank solely because Evolve is lit up.
@@ -624,6 +624,10 @@ end
 
 function __slctx.HaloRun.reviewDue(q)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
+    if __slctx.CONFIG.HaloSprint and __slctx.GoalDirector then
+        local complete=__slctx.GoalDirector.sprintComplete()
+        if complete then return false end
+    end
     if h.mode=='FINISH' or not __slctx.S.resetEnabled or not (__slctx.CONFIG.AutoRebirth or __slctx.CONFIG.AutoEvolution) or r.recovery or isPending() then return false end
     if h.finishReviewPending then return true end
     if __slctx.now()<(h.nextReview or 0) then return false end
@@ -711,7 +715,8 @@ function __slctx.HaloRun.resetForecast(inv,goal)
 end
 function __slctx.HaloRun.performReset(inv,goal,detail,context)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
-    if h.mode=='FINISH' or (r.evo and r.evo.ready and not (detail and detail.comparedEvolution and detail.finishAfterReset)) then return false end
+    if h.mode=='FINISH' or (__slctx.CONFIG.AutoEvolution and r.evo and r.evo.ready
+        and not (detail and detail.comparedEvolution and detail.finishAfterReset)) then return false end
     local reason=detail and detail.authorization=='adaptive-stand-rebirth' and 'ADAPTIVE_REBIRTH'
         or detail and detail.authorization=='next-evolution-prefix' and 'REBIRTH_TO_EVOLUTION'
         or (goal and context.plannedSpend.m>0 and 'RESET_FOR_UPGRADE_STACK' or 'RESET_FOR_NET_PRODUCTION')
@@ -771,20 +776,20 @@ function __slctx.HaloRun.review()
         if not evo then if __slctx.live()then __slctx.pause('EVOLUTION_READ_FAILED','Не удалось проверить этап.')end;return end
         -- Decide after the same-state rebirth-to-final calculation below.
     end
-    if r.evo and r.evo.ready then
+    if r.evo and r.evo.ready and __slctx.CONFIG.AutoEvolution then
         local hold,reason=__slctx.HaloRun.deferEvolution(false)
         if hold then
             __slctx.log('EVOLUTION_DEFERRED',reason..'; current construction retained')
             __slctx.HaloRun.resume('BUY','продолжаю текущую базу; эволюция отложена');return
         end
     end
-    if __slctx.CONFIG.AutoRebirth and __slctx.S.resetEnabled and not (__slctx.GoalDirector and __slctx.GoalDirector.ownsRebirth()) and not (r.evo and r.evo.ready) and inv.investors.m==0 and inv.ready and __slctx.BN.cmp(inv.reward,__slctx.BN.new(__slctx.CONFIG.TabletReserve))>=0 then
+    if __slctx.CONFIG.AutoRebirth and __slctx.S.resetEnabled and not (__slctx.GoalDirector and __slctx.GoalDirector.ownsRebirth()) and not (__slctx.CONFIG.AutoEvolution and r.evo and r.evo.ready) and inv.investors.m==0 and inv.ready and __slctx.BN.cmp(inv.reward,__slctx.BN.new(__slctx.CONFIG.TabletReserve))>=0 then
         local ctx={rate=__slctx.Strategy.rate(),plannedSpend=__slctx.BN.new(0)}
         local d={cost=__slctx.CONFIG.InitialFullLayoutSeconds,authorization='first-bank-30',restoreQuality='first investor bank'}
         __slctx.HaloRun.performReset(inv,nil,d,ctx);return
     end
     local goal=__slctx.HaloRun.powerGoal(inv,false)
-    if goal and goal.canBuyNow and not (r.evo and r.evo.ready) and __slctx.HaloRun.powerActionKey(goal,inv)~=h.powerAttempt then
+    if goal and goal.canBuyNow and not (__slctx.CONFIG.AutoEvolution and r.evo and r.evo.ready) and __slctx.HaloRun.powerActionKey(goal,inv)~=h.powerAttempt then
         r.powerReturn=destination;r.powerPurchasePlan=goal;r.capabilityOnly=nil
         __slctx.Strategy.phase('POWERS','покупаю конкретную доступную пачку, затем возвращаюсь к проходу');return
     end
@@ -1145,7 +1150,10 @@ function __slctx.HaloRun.progress()
     local halo=h.book.halo
     local heading='Halo '..tostring(halo or '?')..' → '..tostring(halo and halo+1 or '?')..' · E'..tostring(r.evo and r.evo.index or '?')..' · '..h.mode
     local goal=r.goalDecision;local goalDetail=goal and goal.detail
-    local names={EVOLVE_READY='перейти к следующей эволюции',REBIRTH_TO_EVOLUTION='rebirth для быстрой эволюции',
+    if __slctx.CONFIG.HaloSprint then
+        heading=heading..' · rebirth '..tostring(r.sprintCount or '?')..'/'..tostring(__slctx.CONFIG.HaloSprintRebirths)
+    end
+    local names={HALO_BUILD='строить базу и улучшать стенды для Halo',EVOLVE_READY='перейти к следующей эволюции',REBIRTH_TO_EVOLUTION='rebirth для быстрой эволюции',
         GROW_TO_EVOLUTION='набрать следующую эволюцию',FINISH_CASH_FUNDED='завершить Halo',FINISH_ATTEMPT='проверить короткий финал',
         REBIRTH='rebirth сейчас выгоднее подготовки стендов',POWER='купить выгодный UpgradeStack',STANDS='улучшить стенды параллельно',WAIT_REWARD='дать вырасти награде',WAIT_EVOLUTION='дождаться близкой эволюции',WAIT_REBIRTH_REWARD='ждать награду rebirth без стройки',REBIRTH_DATA_WAIT='дождаться данных rebirth'}
     if goal and names[goal.choice] then heading=heading..'\nЦель: '..names[goal.choice]end
@@ -1158,7 +1166,8 @@ function __slctx.HaloRun.progress()
         return heading..'\nДеньги покрывают '..tostring(h.goalFinish.count)..' оставшихся покупок.',1,
             'Стоимость проверена по состоянию базы; резерв сохраняется до финала.',audit
     end
-    if __slctx.GoalDirector and __slctx.GoalDirector.repeating() and h.mode~='FINISH' and not h.repeatFinishAttempt then
+    if __slctx.GoalDirector and __slctx.GoalDirector.repeating() and h.mode~='FINISH' and not h.repeatFinishAttempt
+        and not (__slctx.CONFIG.HaloSprint and r.sprintCount and r.sprintCount>=__slctx.CONFIG.HaloSprintRebirths) then
         return heading..'\nВыбираю между стендами, UpgradeStack и rebirth.',0,
             'Без обязательной стройки. Награда rebirth: '..__slctx.BN.format(r.latestInvestors and r.latestInvestors.reward)
                 ..'. Каждый сброс ждёт подтверждения.',audit

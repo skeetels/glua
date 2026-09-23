@@ -1,7 +1,7 @@
 -- Reproduce H29/E1 from report 15055c7b: 135 weak passes, 83% evolution,
 -- one nearby Public Citrus Works quote, and a 3.74e25 net rebirth gain.
 local function fixture(stalled)
-    local c={};require('../src/config')(c);require('../src/core/Numeric')(c)
+    local c={};require('../src/config')(c);c.CONFIG.AutoEvolution=true;c.CONFIG.HaloSprint=false;require('../src/core/Numeric')(c)
     require('../src/core/HaloPlanner')(c);require('../src/core/EconomyPlanner')(c)
     c.BN=c.Core.BN;local B=c.BN
     require('../src/adapters/GuiAccess')(c);c.Safety={};require('../src/runtime/Transactions')(c)
@@ -142,3 +142,4 @@ do
     assert(not c.Strategy.reserveGoal(q,s.rate,'test') and not r.goal,'funded targets never require a reservation')
 end
 print('PASS five-second limit caps retained budgets, refuses aged walls and skips already funded targets')
+

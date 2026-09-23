@@ -1,7 +1,7 @@
 -- Real quote allocation, power/stand adapters and adaptive director, with
 -- deterministic replicated Roblox state. This is not a live-server speed test.
 local function fixture(bank,cash,rate,tier)
-    local c={};require('../src/config')(c);require('../src/core/Numeric')(c);c.BN=c.Core.BN
+    local c={};require('../src/config')(c);c.CONFIG.HaloSprint=false;c.CONFIG.AutoEvolution=true;require('../src/core/Numeric')(c);c.BN=c.Core.BN
     require('../src/data/GameBalance')(c);require('../src/core/UpgradeMath')(c);require('../src/core/PrestigeMath')(c)
     require('../src/core/EconomyPlanner')(c);require('../src/core/GoalPlanner')(c)
     local B,M=c.BN,c.UpgradeMath;local time=100;local queue={};local calls={};local player={}

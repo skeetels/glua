@@ -8,6 +8,23 @@ return function(ctx)
         return ctx.CONFIG.RepeatRebirth and ctx.CONFIG.GoalDirectedProgression and ctx.CONFIG.DirectPrestige
             and ctx.CONFIG.DirectPurchases and ctx.CONFIG.DirectUpgrades and ctx.CONFIG.AutoRebirth and ctx.S.resetEnabled
     end
+    function G.sprintCount()
+        if not ctx.CONFIG.HaloSprint then return nil end
+        local data,why=ctx.DirectPrestige.snapshot()
+        if not data or not data.snapshot or not data.snapshot.epoch then return nil,why or 'REBIRTH_COUNT_UNAVAILABLE' end
+        local count=data.snapshot.epoch.Rebirths
+        if type(count)~='number' or count<0 or count%1~=0 then return nil,'REBIRTH_COUNT_UNAVAILABLE' end
+        local r=ctx.Strategy.route();r.sprintCount=count;r.sprintAt=ctx.now()
+        return count
+    end
+    function G.sprintComplete()
+        if not ctx.CONFIG.HaloSprint then return false end
+        local limit=ctx.CONFIG.HaloSprintRebirths
+        if type(limit)~='number' or limit<0 or limit%1~=0 then return nil,'REBIRTH_LIMIT_INVALID' end
+        local count,why=G.sprintCount()
+        if not count then return nil,why end
+        return count>=limit
+    end
     function G.repeatIntent()
         local intent=ctx.Strategy.route().resetIntent
         return intent and intent.detail and intent.detail.authorization=='adaptive-stand-rebirth'
@@ -19,6 +36,18 @@ return function(ctx)
         if not ctx.CONFIG.GoalDirectedProgression or not ctx.CONFIG.DirectPurchases then return nil end
         local rem=ctx.DirectPurchases.remaining()
         if rem and rem.cash and rem.cost and ctx.BN.cmp(rem.cash,rem.cost)>=0 then return rem end
+    end
+    function G.applyFinish()
+        local r=ctx.Strategy.route();local h=ctx.HaloRun.state()
+        local rem=G.finish();h.goalFinish=rem
+        if not rem then return false end
+        ctx.Strategy.cancelResetIntent('FINISH_CASH_FUNDED')
+        G.note('FINISH_CASH_FUNDED')
+        if rem.count==0 then
+            r.endPurchased=true;r.completionSeen=true
+            ctx.Strategy.phase('HALO','все покупки подтверждены в состоянии базы')
+        else ctx.Strategy.phase('BUY','деньги покрывают весь остаток базы; завершаю Halo')end
+        return true
     end
     function G.note(choice,detail)
         local r=ctx.Strategy.route();local prior=r.goalDecision
@@ -200,7 +229,12 @@ return function(ctx)
         local evo=ctx.readEvolution()
         if not evo then return false,'GOAL_DATA_UNAVAILABLE' end
         local r=ctx.Strategy.route();r.evo=evo;r.lastEvolutionRead=ctx.now()
-        if evo.ready then return false,'EVOLUTION_TAKES_PRIORITY' end
+        if ctx.CONFIG.HaloSprint then
+            local complete,why=G.sprintComplete()
+            if complete==nil then return false,why end
+            if complete then return false,'HALO_REBIRTH_QUOTA_REACHED' end
+        end
+        if ctx.CONFIG.AutoEvolution and evo.ready then return false,'EVOLUTION_TAKES_PRIORITY' end
         if G.finish() then return false,'FINISH_CASH_FUNDED' end
         if G.repeatIntent() then
             local ready,why=G.repeatReady(inv);if not ready then return false,why end
@@ -217,6 +251,24 @@ return function(ctx)
             or not ctx.S.resetEnabled or not ctx.live() or not phases[r.phase] or (r.phase=='BOOT' and not boot)
             or ctx.S.actionPending or ctx.S.resetSession or ctx.S.resetChildPending or ctx.S.buyHold
             or r.powerUnresolved or next(r.blocked or {}) then return false end
+        -- The old half-second tactical review throttle must not stall Buy or a
+        -- parallel stand pass after the second confirmed rebirth.
+        if not boot and ctx.CONFIG.HaloSprint then
+            local complete,why=G.sprintComplete()
+            if complete==nil then G.note(why);ctx.status(why,'Жду подтверждённый счётчик rebirth.');return true end
+            if complete then
+                -- Keep the verified whole-catalogue cash reservation while Buy
+                -- and the stand wave run in the same direct batch.
+                if G.applyFinish() then return false end
+                if r.phase=='REBIRTH_LOOP' then
+                    ctx.Strategy.cancelResetIntent('HALO_REBIRTH_QUOTA_REACHED')
+                    G.note('HALO_BUILD',{rebirths=ctx.CONFIG.HaloSprintRebirths})
+                    ctx.Strategy.phase('BUY','два rebirth подтверждены; база и стенды для Halo')
+                    return true
+                end
+                return false
+            end
+        end
         if not boot and not h.goalFinish and ctx.now()<(h.nextGoalRead or 0) then
             return G.repeating() and h.mode~='FINISH' and not h.repeatFinishAttempt
         end
@@ -228,15 +280,21 @@ return function(ctx)
         end
         r.evo=evo;r.lastEvolutionRead=ctx.now()
         ctx.S.prestige=ctx.S.prestige or {};ctx.S.prestige.evo=evo
-        local rem=G.finish();h.goalFinish=rem
-        if rem then
-            ctx.Strategy.cancelResetIntent('FINISH_CASH_FUNDED')
-            G.note('FINISH_CASH_FUNDED')
-            if rem.count==0 then
-                r.endPurchased=true;r.completionSeen=true
-                ctx.Strategy.phase('HALO','все покупки подтверждены в состоянии базы')
-            else ctx.Strategy.phase('BUY','деньги покрывают весь остаток базы; завершаю Halo')end
+        if G.applyFinish() then
             return boot==true -- BOOT must not continue into its old tablet/power work.
+        end
+        if ctx.CONFIG.HaloSprint then
+            local complete,why=G.sprintComplete()
+            if complete==nil then G.note(why);ctx.status(why,'Жду подтверждённый счётчик rebirth.');return true end
+            if complete then
+                ctx.Strategy.cancelResetIntent('HALO_REBIRTH_QUOTA_REACHED')
+                G.note('HALO_BUILD',{rebirths=ctx.CONFIG.HaloSprintRebirths})
+                if r.phase=='REBIRTH_LOOP' then
+                    ctx.Strategy.phase('BUY','два rebirth подтверждены; база и стенды для Halo')
+                    return true
+                end
+                return false
+            end
         end
         if h.mode=='FINISH' then return false end
         h.repeatFinishAttempt=nil

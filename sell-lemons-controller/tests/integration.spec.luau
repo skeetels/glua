@@ -1,7 +1,7 @@
 local mock=require('./mock-engine')()
 local ctx={}
 do local initialize=require('../src/config');setfenv(initialize,mock.env);initialize(ctx) end
-ctx.CONFIG.RepeatRebirth=false -- Legacy modelled mode; repeat-mode dispatch is covered separately below.
+ctx.CONFIG.RepeatRebirth=false;ctx.CONFIG.HaloSprint=false;ctx.CONFIG.AutoEvolution=true -- Exercise the older evolution route separately.
 do local initialize=require('../src/core/Numeric');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/data/GameBalance');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/core/UpgradeMath');setfenv(initialize,mock.env);initialize(ctx) end
@@ -234,12 +234,51 @@ do
     ctx.HaloRun.state().nextGoalRead=nil;values.attrs.Cash=400
     ctx.step();ctx.step()
     assert(calls.buy>0 and calls.evolve==1 and calls.rebirth==3,'funded Halo must end the rebirth loop')
+    -- The new Halo sprint reads the replicated current-cycle Rebirths counter.
+    -- Two actual RPC receipts are allowed; the third step enters Buy instead.
+    ctx.CONFIG.AutoEvolution=false;ctx.CONFIG.HaloSprint=true
+    values.attrs.Ascension=83;values.attrs.Evolution=0;values.attrs.Rebirths=0;values.attrs.TotalRebirths=1600
+    values.attrs.Cash=136.5247850360478;values.attrs.CashSpent='0'
+    values.attrs.Investors=3.1329471383665064;values.attrs.InvestorsSpent='0'
+    ctx.API.pause();ctx.API.start()
+    local beforeSprint=calls.rebirth;local beforeBuy=calls.buy;local beforeEvolve=calls.evolve
+    for i=1,2 do
+        values.attrs.Cash=136.5247850360478+i
+        ctx.step()
+        assert(calls.rebirth==beforeSprint+i and values.attrs.Rebirths==i,ctx.S.code..' '..ctx.S.status)
+        assert(ctx.S.running and not ctx.S.actionPending)
+    end
+    values.attrs.Cash=136.5247850360478+3
+    ctx.step();ctx.step()
+    assert(calls.rebirth==beforeSprint+2 and calls.evolve==beforeEvolve and calls.buy>beforeBuy,
+        'rebirth='..calls.rebirth..' buy='..calls.buy..' evolve='..calls.evolve..' phase='..ctx.Strategy.route().phase..' status='..ctx.S.code..' '..ctx.S.status)
+    assert(ctx.Strategy.route().phase=='BUY')
+    local oldRemaining=ctx.DirectPurchases.remaining
+    ctx.DirectPurchases.remaining=function()return {cash=ctx.BN.new(60),cost=ctx.BN.new(50),count=10}end
+    ctx.step();assert(ctx.HaloRun.state().goalFinish and ctx.Strategy.route().phase=='BUY',
+        'funded whole-catalogue cash must remain reserved during parallel stand waves')
+    ctx.DirectPurchases.remaining=oldRemaining
+    local inv=ctx.readInvestors()
+    assert(not ctx.Strategy.rebirthBarrier(inv),'the final reset lease must block a third rebirth')
+    -- Reload/reattach in the same game cycle must honor the existing count.
+    ctx.ensureTablet=function()return true end -- Headless ownership read on a new Halo cycle.\n    ctx.API.pause();ctx.API.start();ctx.step()
+    assert(calls.rebirth==beforeSprint+2 and calls.buy>beforeBuy)
+    assert(not ctx.doReset('evolve') and calls.evolve==beforeEvolve,'manual stale evolution phase cannot send an Evolve request')
+    -- A verified new Halo starts another two-rebirth allowance.
+    values.attrs.Ascension=84;values.attrs.Evolution=0;values.attrs.Rebirths=0
+    values.attrs.Investors=3.1329471383665064;values.attrs.Cash=137;values.attrs.CashSpent='0'
+    ctx.API.pause();ctx.API.start();ctx.step()
+    assert(calls.rebirth==beforeSprint+3 and ctx.S.running,'new Halo counter must reopen the allowance')
     ctx.HaloRun.buy=oldBuy
 end
-print('PASS three profitable adaptive resets through real lease/RPC/receipt/cleanup, no forced base preparation, reward wait, evolution and funded-Halo priority')
+print('PASS adaptive reset receipts and two-rebirth Halo sprint: quota, reload, no evolution, funded reservation and new-Halo restart')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)
 for _,connection in ipairs(connections)do assert(not connection.Connected,'leaked event listener')end
 ctx.API.unload()
 print('PASS modular initialization, diagnostics and complete unload fixture')
+
+
+
+

@@ -1,5 +1,7 @@
 local c={}
 require('../src/config')(c)
+assert(c.CONFIG.HaloSprint and c.CONFIG.HaloSprintRebirths==2 and c.CONFIG.AutoEvolution==false and c.CONFIG.AutoHalo==true)
+
 require('../src/core/Numeric')(c)
 require('../src/data/Catalogue')(c)
 require('../src/core/HaloPlanner')(c)

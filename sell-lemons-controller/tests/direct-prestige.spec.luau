@@ -1,6 +1,6 @@
 local initialize=require('../src/adapters/DirectPrestige')
 local function fixture(mode)
-    local c={};require('../src/config')(c);require('../src/core/Numeric')(c);c.BN=c.Core.BN
+    local c={};require('../src/config')(c);c.CONFIG.AutoEvolution=true;c.CONFIG.HaloSprint=false;require('../src/core/Numeric')(c);c.BN=c.Core.BN
     require('../src/data/GameBalance')(c);require('../src/core/UpgradeMath')(c);require('../src/core/PrestigeMath')(c)
     local time=0;local queue={};local calls={};local events={}
     local function object(name,attrs,children)
@@ -238,3 +238,4 @@ do
     assert(c.doReset('evolve') and #calls==1 and c.S.counts.evolve==1)
 end
 print('PASS real direct Evolution dispatcher accepts fresh ready ten-investor start without 400-investor wait')
+
