@@ -3,7 +3,7 @@ local inspect=(function()
 -- Read client handlers as text. Never require them or invoke any game remote.
 return function()
     local function log(s)print('[SL CLIENT] '..s)end
-    log('START v3; client text/bytecode only; no purchases or hooks')
+    log('START v4; pricing dependencies; client text/bytecode only; no purchases or hooks')
     assert(game.PlaceId==79268393072444,'Run in Sell Lemons')
     local env=type(getgenv)=='function' and getgenv() or _G
     local decode=type(env.decompile)=='function' and env.decompile or decompile
@@ -35,13 +35,13 @@ return function()
     local function priority(name)
         local n=name:lower()
         -- Follow the dependencies found in UIManageTileEarner's captured bytecode.
-        local selected={clienttycoonearner=0,tycoonearner=1,remoterequest=2,localtycoonservice=3,tycoon=4}
+        local selected={balance=0,config=1,huge=2,tycoonascension=3,tycooninversion=4,tycoonincome=5,tycoonpowers=6,tycoonpurchasable=7}
         if selected[n] then return selected[n] end
-        if n:find('upgrade',1,true) then return 5 end
-        if n:find('manage',1,true) then return 6 end
-        if n=='clienttycoon' then return 7 end
-        if n:find('income',1,true) then return 8 end
-        if n:find('tycoon',1,true) then return 9 end
+        if n:find('upgrade',1,true) then return 8 end
+        if n:find('manage',1,true) then return 9 end
+        if n=='clienttycoon' then return 10 end
+        if n:find('income',1,true) then return 11 end
+        if n:find('tycoon',1,true) then return 12 end
         return nil
     end
     local candidates={};local seen={}
@@ -62,10 +62,10 @@ return function()
     end
     local total=0;local unsupported=false;local byteTotal=0
     local function exportBytes(id,row)
-        if row.rank>4 or type(readBytes)~='function' then return end
+        if row.rank>7 or type(readBytes)~='function' then return end
         local ok,data=pcall(readBytes,row.object)
         if not ok or type(data)~='string' then log('BYTECODE_FAILED '..row.path);return end
-        if #data<4 or #data>32768 or byteTotal+#data>131072 then log('BYTECODE_LIMIT '..row.path..' bytes='..#data);return end
+        if #data<4 or #data>65536 or byteTotal+#data>262144 then log('BYTECODE_LIMIT '..row.path..' bytes='..#data);return end
         byteTotal=byteTotal+#data
         local a,b=1,0
         for i=1,#data do a=(a+data:byte(i))%65521;b=(b+a)%65521 end

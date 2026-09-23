@@ -38,9 +38,11 @@ def main():
     client=('-- Generated client text inspection. No game remote calls or module execution.\n'
         'local inspect=(function()\n'+(ROOT/'src/diagnostics/ClientInspection.luau').read_text(encoding='utf-8')+
         '\nend)()\nreturn inspect()\n')
-    direct=('-- Generated one-round direct upgrade probe. Buys at most +1 on each owned enabled stand.\n'
+    direct=('-- Generated one-round direct upgrade probe, then read-only pricing inspection.\n'
         'local probe=(function()\n'+(ROOT/'src/diagnostics/DirectUpgradeProbe.luau').read_text(encoding='utf-8')+
-        '\nend)()\nreturn probe()\n')
+        '\nend)()\nlocal result=probe()\n'
+        'local inspect=(function()\n'+(ROOT/'src/diagnostics/ClientInspection.luau').read_text(encoding='utf-8')+
+        '\nend)()\nif result and not result.active then inspect() end\nreturn result\n')
     if args.check:
         assert dest.read_text(encoding='utf-8')==data,'Bundle is stale: run python tools/build.py'
         assert (ROOT/'dist/integrity.json').read_text()==receipt,'Integrity file is stale'
