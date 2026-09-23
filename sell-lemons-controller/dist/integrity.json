@@ -1,5 +1,5 @@
 {
-  "bundle_sha256": "49ed983fd3b7a1609b8538d8b5b64a4ac97cb18b64161b13eb4e8f831f09bcde",
+  "bundle_sha256": "6a035aa60382d52d732f4c1c2e72722222396ece00ec28bd818f0797685c913e",
   "modules": {
     "src/config.luau": "0495eed90a9938d72c5c609044092694388a962a589c3ddfacc361530e33124e",
     "src/core/Numeric.luau": "71f7b50ca6633350e85f9a6dfba9aef425afd34604648c1473afd46ba40466ac",
@@ -21,8 +21,9 @@
     "src/runtime/ReplicatedState.luau": "bbbb6acd26a1472dc2def92425631d4b03becf13c20dfc52b20cdbf005da843f",
     "src/runtime/StateObserver.luau": "799d0715c21b07ab9ba3dfc9856923d012c7f7f980b966d066ab5ebca539f7ae",
     "src/runtime/Transactions.luau": "271aeb5fd12aa03ffb9b912cf6af5f08fd0f265ba7552b0f4b384f92a85ade0f",
-    "src/runtime/Confirmation.luau": "1b1e2f5aad9489406735d2ec4e5c71f1fafb39262d5055a1b66e6be45238f11a",
-    "src/runtime/ResetTransaction.luau": "aada0c10e29886f4c6ffab0d309d67009847620c40d255d470a142d59c54d459",
+    "src/runtime/Confirmation.luau": "cebab250e095738e37e780df5a3651e83a85e0d3c9ba8824ea5cd3e76db18d90",
+    "src/runtime/ResetInspection.luau": "bf8bc9e8eb3d135d2d7a61306ec03aa3e036a914605cfb766e2eb6e215366986",
+    "src/runtime/ResetTransaction.luau": "8d42a2d69413d8297e7b070476eb43c7997f5af762f1a6cf9120ee073b5907c3",
     "src/adapters/DirectUpgrades.luau": "849e5364c938166228866cfcc6e2a0b44de0cc029561dfb90c751b981a4bd97f",
     "src/strategy/RouteState.luau": "5cdb28b2591ab81623bc097d12b22083bcf453fd929dd4fef2a7ec66b924f656",
     "src/strategy/BatchSelection.luau": "2faab9a34cac5ea7207c368e2a5d0154b5d6c04c21774a624b1c7ec9f75e84b3",
@@ -37,10 +38,10 @@
     "src/adapters/DirectPrestige.luau": "6f966966cd90890d8042eb888bbd1bb4725da907d8d01af1e1e35bfa728158a5",
     "src/ui/Progress.luau": "fa4f1ce2a8f5489b5d62e6cb20cc8eb9cb6fb087ef3ab760578bf6a2cfff5ce5",
     "src/ui/Panel.luau": "96734b94a6d0626d98827cde537c7ef92acd044835e2b4aec80fbed7d49c8a69",
-    "src/runtime/Diagnostics.luau": "b856167cf6e660133e19c186f8376a87fa39a5ede330d157a8bc845e0e83fcc6",
+    "src/runtime/Diagnostics.luau": "ded2bb120f75229160659a0a51e329e38dd6a7bfcfe424b072b8782c40677e96",
     "src/runtime/DataInspection.luau": "8b873317ed943a8e53c0e6a84fb051f2b785a9c2cfcfc8cd1885c3cea5ba96ad",
     "src/runtime/Supervisor.luau": "7716c7159c0c1509634397ddd414478149047c7f14bf5e34da01f6ff6f5036ae",
     "src/runtime/AntiIdle.luau": "b9b4ca584924bb96556007cf5cc54e204ffdb1e124aa9301bd087e80576fb287",
-    "src/runtime/Lifecycle.luau": "9f4f7710033f0447c84f6af4f1c56652e7b2ecceeb95d935aecad05a8827a162"
+    "src/runtime/Lifecycle.luau": "b8e1a8fe7091a907beb1913854d7dd486e3ad58d9b267e2d70686cd84dbe8a5d"
   }
 }

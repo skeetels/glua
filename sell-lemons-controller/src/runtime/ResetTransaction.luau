@@ -45,6 +45,7 @@ function __slctx.doReset(kind)
         if not before or not before.ready then return false end
         button=__slctx.g(__slctx.paths.halo..'/Body/Ascend')
     end
+    if __slctx.ResetInspection then __slctx.ResetInspection.origin(kind,button)end
     local preparedRecovery=kind=='rebirth' and __slctx.Strategy.makeRecovery(before) or nil
     __slctx.status('RESET_'..kind,'Выполнение '..kind..'; ожидание изменения прогресса…')
     local session,beginError=__slctx.ResetConfirm.begin(kind,button)
@@ -139,11 +140,21 @@ function __slctx.doReset(kind)
         end})
     if not ok and not session.cancelledReason and __slctx.live() then __slctx.ResetConfirm.dump(session) end
     __slctx.ResetConfirm.finish(session,ok)
+    if __slctx.ResetInspection then __slctx.ResetInspection.finish(session,ok)end
     if __slctx.Strategy.route().halo30 then __slctx.Strategy.route().halo30.resetInFlight=nil end
     if not ok then
         if kind=='evolve' and __slctx.Strategy.route().lastResetGuardReason then
-            __slctx.log('EVOLUTION_DEFERRED',__slctx.Strategy.route().lastResetGuardReason..'; confirmation cancelled; no reset receipt')
-            __slctx.Strategy.phase('BUY','продолжаю текущую базу вместо эволюции');return false
+            local route=__slctx.Strategy.route()
+            local notSent=not session.sent and e=='STATE_CHANGED_BEFORE_CLICK'
+            if session.cancelledReason or notSent then
+                route.lastResetExecution={stage=notSent and 'not-dispatched' or 'cancelled',reason=kind,at=__slctx.now()}
+                __slctx.log('EVOLUTION_DEFERRED',route.lastResetGuardReason..'; '..(notSent and 'origin not sent' or 'dialog cancellation confirmed')..'; no reset receipt')
+                if __slctx.live()then __slctx.Strategy.phase('BUY','продолжаю текущую базу вместо эволюции')end
+            else
+                route.lastResetExecution={stage='unresolved',reason=kind,at=__slctx.now(),error=session.error or e}
+                if __slctx.live()then __slctx.pause('EVOLUTION_CANCEL_UNRESOLVED','Закрытие окна эволюции не подтверждено: '..tostring(session.error or e))end
+            end
+            return false
         end
         if kind=='rebirth' then __slctx.Strategy.noteResetAbort(__slctx.Strategy.route().lastResetGuardReason or e or 'RESET_FAILED') end
         if session.cancelledReason and kind=='rebirth' then

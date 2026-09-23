@@ -1,5 +1,5 @@
 {
-  "version": "4.0.10-dev",
+  "version": "4.0.11-dev",
   "entry": [
     "src/config.luau",
     "src/core/Numeric.luau",
@@ -22,6 +22,7 @@
     "src/runtime/StateObserver.luau",
     "src/runtime/Transactions.luau",
     "src/runtime/Confirmation.luau",
+    "src/runtime/ResetInspection.luau",
     "src/runtime/ResetTransaction.luau",
     "src/adapters/DirectUpgrades.luau",
     "src/strategy/RouteState.luau",

@@ -21,6 +21,7 @@ do local initialize=require('../src/runtime/ReplicatedState');setfenv(initialize
 do local initialize=require('../src/runtime/StateObserver');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/Transactions');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/Confirmation');setfenv(initialize,mock.env);initialize(ctx) end
+do local initialize=require('../src/runtime/ResetInspection');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/ResetTransaction');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/adapters/DirectUpgrades');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/strategy/RouteState');setfenv(initialize,mock.env);initialize(ctx) end
@@ -49,6 +50,8 @@ assert(#mock.tasks==3,'one economic worker, one read-only observer, one presenta
 ctx.Observer.poll()
 local report=ctx.API.report()
 assert(type(report)=='string' and report:find('Controller 4.0',1,true))
+assert(report:find('RETAINED EVOLUTION / HALO SCANS',1,true),'F7 report must contain the retained automatic scans')
+assert(ctx.API.exportCycleState().resetScans==ctx.S.resetScans,'reload export must retain the separate scan book')
 assert(type(ctx.API.inspectData())=='string')
 assert(type(ctx.API.dataReport())=='string')
 local observations=ctx.API.observations()

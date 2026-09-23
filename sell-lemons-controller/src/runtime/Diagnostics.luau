@@ -1,7 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 function __slctx.API.report()
-    local report={'SELL LEMONS CONTROLLER 4.0.10 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
+    local report={'SELL LEMONS CONTROLLER 4.0.11 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
         'Status='..__slctx.S.code..' | '..__slctx.S.status,'Cash='..__slctx.t(__slctx.paths.balance),
         'Last error='..__slctx.S.lastError,'firesignal tested='..tostring(__slctx.Driver.fire~=nil),
         'getconnections tested='..tostring(__slctx.Driver.connections~=nil),
@@ -120,6 +120,7 @@ function __slctx.API.report()
     end
     report[#report+1]='--- ACTION LOG ---' 
     for _,line in ipairs(__slctx.S.logs) do report[#report+1]=line end
+    if __slctx.ResetInspection then report[#report+1]=__slctx.ResetInspection.report()end
     return table.concat(report,'\n')
 end
 
@@ -129,7 +130,7 @@ function __slctx.API.report()
     local base=__slctx.previousReport30();local h=__slctx.HaloRun.state();local f=h.forecast;local m=h.book.model
     local text,fraction,eta,progress=__slctx.HaloRun.progress()
     local economic=progress.economy or {}
-    local out={ '--- HALO ROUTE ECONOMY 4.0.10 ---',
+    local out={ '--- HALO ROUTE ECONOMY 4.0.11 ---',
         'HALO_MODE='..h.mode..'; halo='..tostring(h.book.halo)..'; evolution='..tostring(h.book.evolution),
         'HALO_READINESS fraction='..tostring(fraction)..'; type=route-income-capacity; bar is explicitly logarithmic, NOT percent of elapsed time',
         'REQUIRED_INCOME='..__slctx.BN.format(economic.requiredRate)..'; CURRENT_INCOME='..__slctx.BN.format(economic.currentRate)
@@ -209,7 +210,7 @@ function __slctx.API.copyLog()
     __slctx.S.connections[#__slctx.S.connections+1]=x.Activated:Connect(function() __slctx.exportFrame:Destroy();__slctx.exportFrame=nil end)
 end
 function __slctx.API.exportCycleState()
-    return {place=game.PlaceId,user=__slctx.player.UserId,route=__slctx.S.route,pausedAt=__slctx.S.manualPauseAt or __slctx.now()}
+    return {place=game.PlaceId,user=__slctx.player.UserId,route=__slctx.S.route,pausedAt=__slctx.S.manualPauseAt or __slctx.now(),resetScans=__slctx.S.resetScans}
 end
 function __slctx.API.callbackPending() return __slctx.S.actionPending~=nil or __slctx.S.resetChildPending~=nil
     or __slctx.S.resetSession~=nil or __slctx.S.testing==true or (__slctx.S.route and __slctx.S.route.powerUnresolved~=nil) end

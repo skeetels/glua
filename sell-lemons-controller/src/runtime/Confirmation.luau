@@ -518,6 +518,27 @@ end
 function __slctx.ResetConfirm.weakRebirth(d)
     return d and not d.notice and __slctx.ResetConfirm.normalize(d.context):find('that s not very much',1,true)~=nil
 end
+function __slctx.ResetConfirm.cancelButton(d)
+    if not d or d.notice or d.paid then return nil,'CANCEL_CONTEXT_UNSAFE' end
+    -- UIAlert has both Main/Close and Main/Buttons/Option2 (nvm). Prefer the
+    -- unique negative answer in the matched ordinary transaction controls.
+    local main=__slctx.g('Important/Alert/Main')
+    if main and d.root==main then
+        local controls=__slctx.at(main,'Buttons');local chosen
+        for _,button in ipairs(d.negatives or {})do
+            if controls and __slctx.ancestorOf(button,controls) then
+                if chosen then return nil,'CANCEL_ANSWERS_AMBIGUOUS' end
+                chosen=button
+            end
+        end
+        if chosen then return chosen end
+        local close=__slctx.at(main,'Close')
+        for _,button in ipairs(d.negatives or {})do if button==close then return close end end
+        return nil,'CANCEL_ANSWER_MISSING'
+    end
+    if d.negatives and #d.negatives==1 then return d.negatives[1] end
+    return nil,'CANCEL_ANSWERS_AMBIGUOUS'
+end
 function __slctx.ResetConfirm.cancelReset(session,d,reason)
     -- Only the matching rebirth/evolution dialog's negative button may be used.
     -- Notices and unrelated purchase/ascension dialogs remain excluded.
@@ -534,25 +555,36 @@ function __slctx.ResetConfirm.cancelReset(session,d,reason)
         return true
     end
     if __slctx.now()-c.started>__slctx.CONFIG.ActionTimeout then
-        __slctx.pause(session.kind=='evolve' and 'EVOLUTION_CANCEL_UNRESOLVED' or 'REBIRTH_CANCEL_UNRESOLVED','Сброс не подтверждён; кнопка отмены не закрыла окно.');return true
+        session.error='CANCEL_UNRESOLVED'
+        __slctx.pause(session.kind=='evolve' and 'EVOLUTION_CANCEL_UNRESOLVED' or 'REBIRTH_CANCEL_UNRESOLVED',
+            'Отмена не подтверждена; окно осталось открытым. Попыток: '..c.attempts..'; причина: '..tostring(c.lastIssue or 'окно не закрылось'));return true
     end
     if c.attempts>=3 or __slctx.now()-c.lastAt<__slctx.CONFIG.ConfirmRetrySeconds then return true end
-    local negative=d.negatives and #d.negatives==1 and d.negatives[1]
-    if not negative or not __slctx.ResetConfirm.ready(negative,d.root) then return true end
+    local negative,issue=__slctx.ResetConfirm.cancelButton(d)
+    local ready,why
+    if negative then ready,why=__slctx.ResetConfirm.ready(negative,d.root)end
+    if not negative or not ready then
+        c.lastIssue=issue or why or 'CANCEL_BUTTON_NOT_READY'
+        __slctx.ResetConfirm.note(session,'RESET_CANCEL_WAIT',session.kind..' | '..c.lastIssue)
+        return true
+    end
     local function guard()
         if not __slctx.ResetConfirm.valid(session) or (session.kind~='rebirth' and session.kind~='evolve') or not __slctx.visible(d.root)
             or __slctx.ResetConfirm.buttonRole(negative)~='negative' or not __slctx.ResetConfirm.ready(negative,d.root) then return false end
         local fresh=__slctx.ResetConfirm.inspect(session.kind,d.button,session.expected)
-        return fresh and fresh.root==d.root and #fresh.negatives==1 and fresh.negatives[1]==negative
+        return fresh and fresh.root==d.root and fresh.fingerprint==d.fingerprint
+            and __slctx.ResetConfirm.cancelButton(fresh)==negative
     end
-    if not guard() then return true end
-    local modes=__slctx.candidateModes(negative,'navigation');if not modes[1] then return true end
+    if not guard() then c.lastIssue='CANCEL_CONTEXT_CHANGED';return true end
+    local modes=__slctx.candidateModes(negative,'navigation');if not modes[1] then c.lastIssue='NO_CANCEL_INPUT_MODE';return true end
     c.attempts=c.attempts+1;c.lastAt=__slctx.now()
     local p={done=false,started=__slctx.now()};session.pending=p;__slctx.S.resetChildPending=p
+    __slctx.ResetConfirm.note(session,'RESET_CANCEL_CLICK',session.kind..' | attempt='..c.attempts..' | '..__slctx.ResetConfirm.path(negative))
     p.thread=task.spawn(function()
         local ok,result,err=pcall(function() return __slctx.dispatch(negative,modes[((c.attempts-1)%#modes)+1],{guard=guard}) end)
         p.ok=ok and result~=false;p.error=not ok and result or err;p.done=true
         if p.ok then c.sent=true end
+        c.lastIssue=p.ok and 'WAITING_FOR_DIALOG_CLOSE' or tostring(p.error or 'CANCEL_DISPATCH_FAILED')
         if p.ok and not __slctx.visible(d.root) then session.cancelledReason=session.cancelReason end
         if __slctx.S.resetChildPending==p then __slctx.S.resetChildPending=nil end
     end)
@@ -616,6 +648,7 @@ function __slctx.ResetConfirm.poll(session)
         state.button=d.button;state.root=d.root;state.readyAt=nil
     end
     session.candidate=d
+    if session.isReset and __slctx.ResetInspection then __slctx.ResetInspection.dialog(session,d)end
     if session.kind=='rebirth' and not d.notice then
         if __slctx.ResetConfirm.weakRebirth(d) then
             return __slctx.ResetConfirm.cancelReset(session,d,'GAME_SAYS_REWARD_TOO_SMALL')
