@@ -223,7 +223,7 @@ function __slctx.Strategy.maybeCapabilityReview(cards)
 end
 function __slctx.Strategy.maybeFastBuild()
     local r=__slctx.Strategy.route()
-    if not __slctx.CONFIG.FastMaxRecovery or not (__slctx.S.tablet and __slctx.S.tablet.owned) then return false end
+    if not __slctx.CONFIG.FastMaxRecovery or not __slctx.canUpgrade() then return false end
     if __slctx.Strategy.largestBatch()~='max' or (r.pass and not r.pass.finished) then return false end
     if r.endPurchased or r.completionSeen or (r.buyQuote and __slctx.Planner.isTerminalName(r.buyQuote.name)) then return false end
     local recovering=r.recovery~=nil or r.fastBuildPending==true
@@ -243,7 +243,7 @@ function __slctx.Strategy.fastBuild()
     if r.evo and r.evo.ready and __slctx.CONFIG.AutoEvolution and __slctx.S.resetEnabled and __slctx.now()>=(r.evolutionReserveRetryAt or 0) then
         r.reserveSince=__slctx.now();__slctx.Strategy.phase('EVOLVE_RESERVE','эволюция важнее восстановления');return
     end
-    if not (__slctx.S.tablet and __slctx.S.tablet.owned) then __slctx.Strategy.phase('BUY','планшет ещё не открыт');return end
+    if not __slctx.canUpgrade() then __slctx.Strategy.phase('BUY','планшет ещё не открыт');return end
     if r.pass and not r.pass.finished and r.pass.quickBuild then __slctx.Strategy.growUpgrades();return end
     local ok,why=__slctx.manageTab('Manage')
     if not ok then if __slctx.live() then __slctx.pause('UPGRADE_MENU_NOT_READY',tostring(why)) end;return end

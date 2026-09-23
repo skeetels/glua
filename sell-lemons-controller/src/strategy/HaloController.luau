@@ -394,7 +394,7 @@ function __slctx.HaloRun.powerScanKey(inv)
 end
 function __slctx.HaloRun.powerGoal(inv,force)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
-    if not __slctx.CONFIG.AutoInvestorPowers or not (__slctx.S.tablet and __slctx.S.tablet.owned) or __slctx.Strategy.largestBatch()=='max' then return nil end
+    if not __slctx.CONFIG.AutoInvestorPowers or not __slctx.canUpgrade() or __slctx.Strategy.largestBatch()=='max' then return nil end
     local goal=__slctx.Strategy.updatePowerGoal(inv);local key=__slctx.HaloRun.powerScanKey(inv);local cache=h.powerScan
     local missingQuote=not goal and cache and not cache.failed and cache.at
         and __slctx.now()-cache.at>=__slctx.CONFIG.PowerScanRetrySeconds
@@ -492,7 +492,7 @@ function __slctx.HaloRun.boot()
     if inv.perInvestor and math.abs(inv.perInvestor-__slctx.CONFIG.ExpectedInvestorBonus)>.0001 then
         __slctx.log('DONOR_BONUS_OBSERVED','GUI='..tostring(inv.perInvestor)..'; using GUI, not multiplying donor bonus twice')
     end
-    if __slctx.S.tablet and __slctx.S.tablet.owned then
+    if __slctx.canUpgrade() then
         if __slctx.manageTab('Manage') then __slctx.Strategy.stackPrepare();local cards=__slctx.Strategy.readCards();__slctx.Strategy.captureGrowth(cards)end
         if __slctx.Strategy.largestBatch()~='max' and __slctx.CONFIG.AutoInvestorPowers then
             __slctx.Strategy.phase('POWERS','доступные способности в пределах 5%, затем подготовка к финалу');return
@@ -749,7 +749,7 @@ function __slctx.HaloRun.tryBuyHold(c)
                 if not point or math.abs(point.x-pressed.x)>1 or math.abs(point.y-pressed.y)>1 then return 'button covered or moved' end
                 local q=__slctx.readBuy();local signature=__slctx.HaloRun.heldSignature(q)
                 if signature and signature~=last then last=signature;lastChange=__slctx.now();hold.progressWhileDown=true end
-                if __slctx.Planner.completionMarker(__slctx.t(__slctx.paths.buy..'/Purchase'),__slctx.t(__slctx.paths.buy..'/PurchasePrice'),__slctx.t(__slctx.paths.buy..'/PurchaseInfo')) then return 'end observed' end
+                if __slctx.buyComplete() then return 'end observed' end
                 local amount=__slctx.cash()
                 if not q or q.button~=c.button or not q.cost or not amount then return 'quote unavailable' end
                 if __slctx.BN.cmp(amount,q.cost)<0 then return 'funding wall' end
@@ -766,7 +766,7 @@ function __slctx.HaloRun.tryBuyHold(c)
         local settleDeadline=__slctx.now()+(hold.progressWhileDown and math.max(.2,__slctx.CONFIG.RecoverySettleSeconds) or __slctx.CONFIG.ActionTimeout)
         repeat
             final=__slctx.readBuy()
-            completed=__slctx.Planner.completionMarker(__slctx.t(__slctx.paths.buy..'/Purchase'),__slctx.t(__slctx.paths.buy..'/PurchasePrice'),__slctx.t(__slctx.paths.buy..'/PurchaseInfo'))
+            completed=__slctx.buyComplete()
             local signature=completed and 'COMPLETE' or __slctx.HaloRun.heldSignature(final)
             if signature~=last then last=signature;stableAt=__slctx.now() end
             observed=completed or signature~=nil and signature~=initial
@@ -808,7 +808,7 @@ function __slctx.HaloRun.buy()
     if r.endPurchased or r.completionSeen then __slctx.Strategy.phase('HALO','конец подтверждён');return end
     local ok,why=__slctx.ensureStrip();if not ok then if __slctx.live()then __slctx.pause('BUY_MENU_NOT_READY',tostring(why))end;return end
     local q=__slctx.readBuy()
-    if __slctx.Planner.completionMarker(__slctx.t(__slctx.paths.buy..'/Purchase'),__slctx.t(__slctx.paths.buy..'/PurchasePrice'),__slctx.t(__slctx.paths.buy..'/PurchaseInfo'))then
+    if __slctx.buyComplete()then
         r.completionSeen=true;__slctx.Strategy.phase('HALO','конец каталога подтверждён интерфейсом');return
     end
     if q and not q.cost and q.parseReason=='hidden_large' then
@@ -816,7 +816,7 @@ function __slctx.HaloRun.buy()
         -- a completed catalogue, or permission to substitute a predicted debit.
         r.buyQuote=q;h.wall={quote=q.id,at=__slctx.now(),hiddenPrice=true}
         if h.mode=='FINISH' then __slctx.HaloRun.cancelFinish('next real price is hidden; financing cannot be confirmed') end
-        if __slctx.S.tablet and __slctx.S.tablet.owned then if r.pass and r.pass.finished then r.pass=nil end;__slctx.Strategy.phase('UPGRADE','цена скрыта игрой; усиливаю источники без выдуманной покупки')
+        if __slctx.canUpgrade() then if r.pass and r.pass.finished then r.pass=nil end;__slctx.Strategy.phase('UPGRADE','цена скрыта игрой; усиливаю источники без выдуманной покупки')
         else __slctx.HaloRun.requestReview('BUY') end
         return
     end
@@ -864,7 +864,7 @@ function __slctx.HaloRun.buy()
     end
     if not h.wall or h.wall.quote~=q.id then h.wall={quote=q.id,at=__slctx.now()} end
     if r.pass and r.pass.finished then r.pass=nil end
-    if __slctx.S.tablet and __slctx.S.tablet.owned then __slctx.Strategy.phase('UPGRADE','PREPARE: оцениваю усиление базы перед следующим решением')
+    if __slctx.canUpgrade() then __slctx.Strategy.phase('UPGRADE','PREPARE: оцениваю усиление базы перед следующим решением')
     else __slctx.HaloRun.requestReview('BUY')end
 end
 

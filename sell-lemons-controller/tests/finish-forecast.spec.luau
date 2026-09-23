@@ -8,6 +8,8 @@ local function fixture()
         {id=2,name='The End',cost=B.new(40),info=''}}
     local r={previousHalo=0,cards={},blocked={},economicRevision=0,phase='BUY'}
     c.S={counts={upgrade=0},resetEnabled=true}
+    c.buyComplete=function()return false end
+    c.canUpgrade=function()return c.S.tablet and c.S.tablet.owned end
     c.now=function()return state.time end;c.cash=function()return state.money end
     c.log=function(code,message)state.logs[#state.logs+1]={code,message}end
     c.Strategy={route=function()return r end,rate=function()return state.rate end,

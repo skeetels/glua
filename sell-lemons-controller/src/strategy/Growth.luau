@@ -2,6 +2,10 @@
 return function(__slctx)
 function __slctx.Strategy.boot()
     local r=__slctx.Strategy.route();r.buildWall=nil;r.buildQuote=nil
+    if __slctx.CONFIG.DirectUpgrades then
+        local state,why=__slctx.DirectUpgrades.state()
+        if not state then __slctx.pause('DIRECT_STATE_UNAVAILABLE',tostring(why));return end
+    end
     __slctx.Strategy.cancelResetIntent('BOOT_REVALIDATION')
     if not r.schema28 then
         r.rebuildProfile=nil;r.rebuildEstimate=nil;r.fullLayoutSeconds=nil;r.paritySeconds=nil
@@ -58,7 +62,7 @@ function __slctx.Strategy.growBuy()
     if not ok then __slctx.pause('BUY_MENU_NOT_READY',tostring(err));return end
     local q=__slctx.readBuy()
     local name=__slctx.t(__slctx.paths.buy..'/Purchase');local price=__slctx.t(__slctx.paths.buy..'/PurchasePrice');local info=__slctx.t(__slctx.paths.buy..'/PurchaseInfo')
-    if __slctx.Planner.completionMarker(name,price,info) then
+    if __slctx.buyComplete() then
         r.completionSeen=true;r.buyQuote=nil
         __slctx.Strategy.phase('HALO','explicit end-of-catalog marker');return
     end
@@ -251,7 +255,7 @@ end
 function __slctx.Strategy.growUpgrades()
     if __slctx.CONFIG.DirectUpgrades and __slctx.DirectUpgrades then return __slctx.DirectUpgrades.grow()end
     local r=__slctx.Strategy.route()
-    if not (__slctx.S.tablet and __slctx.S.tablet.owned) then
+    if not __slctx.canUpgrade() then
         r.cards={};if not r.pass or r.pass.finished then __slctx.Strategy.beginPass({}) end
         __slctx.Strategy.finishPass({});return
     end

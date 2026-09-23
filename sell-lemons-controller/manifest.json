@@ -1,5 +1,5 @@
 {
-  "version": "4.0.3-dev",
+  "version": "4.0.4-dev",
   "entry": [
     "src/config.luau",
     "src/core/Numeric.luau",
@@ -32,6 +32,7 @@
     "src/strategy/ResetPlanning.luau",
     "src/strategy/Growth.luau",
     "src/strategy/HaloController.luau",
+    "src/adapters/DirectPurchases.luau",
     "src/ui/Progress.luau",
     "src/ui/Panel.luau",
     "src/runtime/Diagnostics.luau",

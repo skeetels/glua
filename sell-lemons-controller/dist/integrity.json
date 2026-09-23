@@ -1,9 +1,9 @@
 {
-  "bundle_sha256": "0893630422b8b461c6770633e32c2322b4dc6feaa4edde74c74daa6932e43622",
+  "bundle_sha256": "07c425c8244fc12cc05a1b798e780cd5e00eb9287e20e8ce43532708991e2036",
   "modules": {
-    "src/config.luau": "72e7375f68c9750e1a59b021d5bd148e6a1e37e570048e2e8f1f12123e88c502",
+    "src/config.luau": "451ac5ddf1c73db5468c19acc768e80ab696dd6feccc36597dd089e76d9268e8",
     "src/core/Numeric.luau": "71f7b50ca6633350e85f9a6dfba9aef425afd34604648c1473afd46ba40466ac",
-    "src/data/GameBalance.luau": "3b492588e8e113d598dada020829d4ebb0a068ad29a2b64abf357c1067e041d5",
+    "src/data/GameBalance.luau": "298a5a9321520e9f5e8a1ffd693c3bd31ec0b6fdb47f0c8845be8d89b9c6b402",
     "src/core/UpgradeMath.luau": "09482f8e16b47438cd9eb975f72cb5a14d960b73f7f2f6b05473fbb87f7b2b48",
     "src/data/Catalogue.luau": "19681968d8448b6ea235f1e6913af7f16f21d39b848c8bdcd1e3f8b110589606",
     "src/core/HaloPlanner.luau": "eaf3374b88d2d3047a1e4bf778c735ba66603f615bdc45e1e178e9a6b570a4df",
@@ -22,22 +22,23 @@
     "src/runtime/Transactions.luau": "271aeb5fd12aa03ffb9b912cf6af5f08fd0f265ba7552b0f4b384f92a85ade0f",
     "src/runtime/Confirmation.luau": "23827a4aa162cf325061a270cee1182e6ce264ebec933feed52404d52058fd6c",
     "src/runtime/ResetTransaction.luau": "b8a4c89b334d89e8586ae68dfd32ccbcc9f01081fba58cc0b3ba0bb4b6df02a9",
-    "src/adapters/DirectUpgrades.luau": "146cb8451f9b0812576158f16ba1d633abdeb9b4f55b974a36217a14604d2a85",
-    "src/strategy/RouteState.luau": "dec31a22c3eae8e95bf41321f44ef31f22a09c3e89f08983a492244b6e45568a",
+    "src/adapters/DirectUpgrades.luau": "2ef4e7b52865d568837bf2f0a57d887eff3ca93a7cba6dd4849d2900f12759ca",
+    "src/strategy/RouteState.luau": "e34b6da0b816423de80503b85f1984ace40e233eb1db5140fb5ff7495bcfcc0d",
     "src/strategy/BatchSelection.luau": "2faab9a34cac5ea7207c368e2a5d0154b5d6c04c21774a624b1c7ec9f75e84b3",
-    "src/strategy/InvestorPowers.luau": "232113551309b4e03ce01ce5a8ce32f639bd1ba49911c8b1a0668a5dd912c29a",
+    "src/strategy/InvestorPowers.luau": "7bae3b46914bae5979f07b7d242ec39ae451b6507e35288fee8613cb6336fa1d",
     "src/strategy/Capital.luau": "b6f6c0be45dfeb15fb505650aa4cf6cfbaf26c35d410cc4b579e02646c46aded",
     "src/strategy/UpgradeAllocation.luau": "697c8d4f972c599fda405aa7fe25723e7a8a1f541075ea9f60ff9b39613f5c73",
     "src/strategy/Observations.luau": "91ae3efe67e655a51f7ea7713fb23f523c85040076659c99ef873ed8b74547f5",
-    "src/strategy/ResetPlanning.luau": "0a051276bfcfc5fc1bb5c31408e7fdfb3ad17e625516e0a51bdd3ef4e638f2b3",
-    "src/strategy/Growth.luau": "c7c4a99ef46d67a7161a0820015eaa31ebfd89fe34a63caf12edc80689b80c2e",
-    "src/strategy/HaloController.luau": "499aba75c5a55ea2676beede063ada32b2debb4e6035f70bd00c84bb78578848",
+    "src/strategy/ResetPlanning.luau": "3e3c07c8fddb4dddf425abbf989c339653c3485851064808cfe5662913dfe031",
+    "src/strategy/Growth.luau": "26f60d5ba2063da1cd2b3bcec0b61dc8de5247ba6607e4b8933bb96797bee980",
+    "src/strategy/HaloController.luau": "f708de47c2625d0f17ae7ba249cae7728831dc3e36b7dacd25ab71fb146063cc",
+    "src/adapters/DirectPurchases.luau": "6de6d34bb6e469065aa89da336bf1856341e53b917dfbd31bee2fbc8326eaa56",
     "src/ui/Progress.luau": "fa4f1ce2a8f5489b5d62e6cb20cc8eb9cb6fb087ef3ab760578bf6a2cfff5ce5",
     "src/ui/Panel.luau": "96734b94a6d0626d98827cde537c7ef92acd044835e2b4aec80fbed7d49c8a69",
     "src/runtime/Diagnostics.luau": "4813150083bea5c776be773dd8607d2c0b64100b4ef25c7774eddaa9a22c70cb",
     "src/runtime/DataInspection.luau": "8b873317ed943a8e53c0e6a84fb051f2b785a9c2cfcfc8cd1885c3cea5ba96ad",
     "src/runtime/Supervisor.luau": "c22c2a8d1421ce7c2f03e2979a65f08ef35522ffb1e149ae1308293c4c5d00db",
     "src/runtime/AntiIdle.luau": "b9b4ca584924bb96556007cf5cc54e204ffdb1e124aa9301bd087e80576fb287",
-    "src/runtime/Lifecycle.luau": "14c57bf0b319f4e574e97c42ff6062a46a46cadd93ee7ec818892dcce6b22fcb"
+    "src/runtime/Lifecycle.luau": "32d8b849e2ad86bb6773b18e5566aec7d86d94eb3ea1185a36ac33b285e53f58"
   }
 }

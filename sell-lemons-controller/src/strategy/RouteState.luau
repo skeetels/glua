@@ -46,7 +46,7 @@ function __slctx.Strategy.refreshResetBuy()
         if not __slctx.live() then return false,'PAUSED' end
         if opened then
             local q=__slctx.readBuy()
-            if __slctx.Planner.completionMarker(__slctx.t(__slctx.paths.buy..'/Purchase'),__slctx.t(__slctx.paths.buy..'/PurchasePrice'),__slctx.t(__slctx.paths.buy..'/PurchaseInfo')) then
+            if __slctx.buyComplete() then
                 r.completionSeen=true;__slctx.Strategy.quotes();return true
             end
             if q and (q.cost or q.parseReason=='hidden_large') then
@@ -218,7 +218,7 @@ function __slctx.Strategy.afterReset(kind,before)
             __slctx.log('RECOVERY_CENSORED','Next reset before comparable income; unfinished recovery not counted as a fast sample')
         end
         r.recovery=r.nextRecovery;r.nextRecovery=nil
-        r.lastReset=kind;r.rebuilding=true;r.bootTablet=not (__slctx.S.tablet and __slctx.S.tablet.owned)
+        r.lastReset=kind;r.rebuilding=true;r.bootTablet=not __slctx.canUpgrade()
         r.bootEvolution=false
     else
         r.spent=__slctx.BN.new(0);r.spentUnknown=false;r.originInvestors=nil;r.latestInvestors=nil

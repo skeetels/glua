@@ -31,6 +31,7 @@ do local initialize=require('../src/strategy/Observations');setfenv(initialize,m
 do local initialize=require('../src/strategy/ResetPlanning');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/strategy/Growth');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/strategy/HaloController');setfenv(initialize,mock.env);initialize(ctx) end
+do local initialize=require('../src/adapters/DirectPurchases');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/ui/Progress');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/ui/Panel');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/Diagnostics');setfenv(initialize,mock.env);initialize(ctx) end

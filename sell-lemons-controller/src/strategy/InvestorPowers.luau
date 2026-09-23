@@ -56,11 +56,11 @@ function __slctx.Powers.run()
         if (r.runBuyCount or 0)==0 then r.buildStarted=__slctx.now() end
         __slctx.Strategy.phase(destination,'MAX уже подтверждён; необязательные Powers не покупаются');return
     end
-    local inv,why=__slctx.Strategy.readInvestors()
+    local inv,why=__slctx.Powers.wallet()
     if not inv then __slctx.log('POWER_READ_SKIPPED',tostring(why));r.powerPending=false;__slctx.Strategy.phase(destination,'power balance unavailable');return end
     __slctx.Strategy.syncPowerBank(inv.investors)
     local remaining=inv.investors
-    if __slctx.S.tablet and __slctx.S.tablet.owned and not __slctx.Strategy.largestBatch() then
+    if __slctx.canUpgrade() and not __slctx.Strategy.largestBatch() then
         if __slctx.manageTab('Manage') then __slctx.Strategy.stackPrepare() end
     end
     local opened,err=__slctx.manageTab('Powers')
@@ -92,7 +92,11 @@ function __slctx.Powers.run()
         if not chosen then break end
         local item=chosen;local started=__slctx.now();local focusBase=__slctx.S.focusPausedTotal or 0
         __slctx.status('BUY_INVESTOR_POWER','Покупаю '..item.title..'; сохраняю общий защищённый банк 95%')
-        local done,message=__slctx.ResetConfirm.perform(item.button,'power',function() return __slctx.Powers.proof(item) end,
+        local done,message
+        if item.source=='directPower' then
+            done,message=__slctx.DirectPurchases.powerPurchase(item)
+        else
+        done,message=__slctx.ResetConfirm.perform(item.button,'power',function() return __slctx.Powers.proof(item) end,
             {once=true,stableFor=0.08,guard=function()
                 if not __slctx.CONFIG.AutoInvestorPowers then return false end
                 local tile=__slctx.g(item.path);local button=tile and tile:FindFirstChild('Buy')
@@ -107,6 +111,7 @@ function __slctx.Powers.run()
                         and __slctx.BN.cmp(price,item.price)==0 and __slctx.attr(__slctx.at(button,'Icon'),'AssetName')=='Icons.Investors'
                         and __slctx.Planner.powerBudgetAllows(price,remaining,r.powerUsed,r.powerBase,__slctx.CONFIG)
                 end})
+        end
         if not done and message=='STATE_CHANGED_BEFORE_CLICK' then
             __slctx.log('POWER_REPLAN','state changed before dispatch; no debit inferred')
             break
@@ -136,7 +141,7 @@ function __slctx.Powers.run()
         if __slctx.S.cashFlow then __slctx.S.cashFlow:reset() end
         r.batchSelected=nil;r.batchUnavailable=false;r.maxUnavailable=nil;r.maxObserved=nil
         r.availableBatches=nil;r.preferredReviewBatch=nil
-        local actual=__slctx.Strategy.readInvestors()
+        local actual=__slctx.Powers.wallet()
         if actual then
             __slctx.Strategy.syncPowerBank(actual.investors)
             -- Parity targets remain the actual pre-reset rates; never multiply them.

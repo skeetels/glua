@@ -25,6 +25,14 @@ return function(ctx)
             {'Modules.Tycoon.Entity.Client.ClientTycoonEarner',9539,1200172661},
             {'Modules.Tycoon.Component.TycoonIncome',7049,3274092081},
             {'Modules.Tycoon.Component.TycoonPowers',3681,2346706770},
+            {'Core.InstanceTable',13745,871009961},
+            {'Modules.Tycoon.Component.TycoonInversion',4321,2891158939},
+            {'Modules.Tycoon.Component.TycoonAscension',3824,2161590675},
+            {'Modules.Tycoon.Component.Client.ClientTycoonPowers',1499,4053663912},
+            {'Modules.Tycoon.Entity.Client.ClientTycoonPurchase',9384,2072785969},
+            {'Modules.Tycoon.Entity.TycoonPurchase',3004,2893670776},
+            {'Modules.Tycoon.Component.TycoonPurchases',2551,2335596492},
+            {'Modules.UI.Layers.HUD.UIPowerBuyNext',4310,3175981909},
         })do
             local object=rs;for part in spec[1]:gmatch('[^.]+')do object=child(object,part)end
             local ok,bytes=pcall(reader,object)
@@ -58,17 +66,22 @@ return function(ctx)
         local cash=attr(values,'Cash');local asc=attr(values,'Ascension') or 0
         if not number(cash) or not integer(asc) then return nil,'CASH_OR_ASCENSION_UNAVAILABLE' end
         local inversion=child(root,'InversionCards')
-        if not inversion then return nil,'INVERSION_PRICE_STATE_UNAVAILABLE' end
-        for _,count in pairs(inversion:GetAttributes())do
-            if count~=0 then return nil,'INVERSION_CARD_PRICING_NOT_VERIFIED' end
+        -- InstanceTable.new(name, root, true) uses a detached empty Configuration
+        -- until one is replicated. Main-world accounts with no inversion have no folder.
+        if not inversion then
+            if game.PlaceId~=79268393072444 or (attr(values,'Inversion') or 0)~=0 then return nil,'INVERSION_PRICE_STATE_UNAVAILABLE' end
+        else
+            for _,count in pairs(inversion:GetAttributes())do
+                if count~=0 then return nil,'INVERSION_CARD_PRICING_NOT_VERIFIED' end
+            end
+            if #inversion:GetChildren()>0 then return nil,'INVERSION_CARD_SCHEMA_UNKNOWN' end
         end
-        if #inversion:GetChildren()>0 then return nil,'INVERSION_CARD_SCHEMA_UNKNOWN' end
         local level=(attr(powers,'UpgradeStack') or 0)+(attr(child(powers,'Permanent'),'UpgradeStack') or 0)
         local selected=attr(child(powers,'Selected'),'UpgradeStack')
         if not integer(level) or level>4 or selected~=nil and not integer(selected) then return nil,'STACK_LEVEL_UNKNOWN' end
         if selected~=nil then level=math.min(selected,level)end
         local cap=({[0]=1,5,25,100,math.huge})[level]
-        local s={own=own,root=root,values=values,levels=levels,cash=cash,cap=cap,shift=asc*math.log10(3.33),epoch={},stands={},time=ctx.now()}
+        local s={own=own,root=root,values=values,levels=levels,powers=powers,cash=cash,cap=cap,shift=asc*math.log10(3.33),epoch={},stands={},time=ctx.now()}
         for _,key in ipairs(counterKeys)do s.epoch[key]=attr(values,key)end
         local seen={}
         for _,instance in ipairs(game:GetService('CollectionService'):GetTagged('Tycoon.Earner'))do

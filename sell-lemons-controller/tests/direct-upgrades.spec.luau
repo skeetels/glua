@@ -44,6 +44,8 @@ local function fixture(mode)
     local income=object('Income',{ValueMultiplier=0,RateMultiplier=0},{Streams=streams})
     local inversion=object('InversionCards',mode=='inversion' and {UnknownCard=1} or {})
     local rootValues=object('Values',{}, {Values=values,Upgrades=levels,Powers=powers,Income=income,InversionCards=inversion})
+    if mode=='missing-inversion' or mode=='inversion-not-replicated' then rootValues.children.InversionCards=nil end
+    if mode=='inversion-not-replicated' then values.attrs.Inversion=1 end
     local owner=object('Owner');owner.ClassName='ObjectValue';owner.Value=player
     local own=object('Tycoon7',{}, {Values=rootValues,Owner=owner});local world=object('Workspace',{}, {Tycoon7=own})
     local tagged={}
@@ -65,7 +67,7 @@ local function fixture(mode)
         end
         tagged[#tagged+1]=stand
     end
-    local env=setmetatable({game={GetService=function(_,name)
+    local env=setmetatable({game={PlaceId=79268393072444,GetService=function(_,name)
         if name=='Workspace' then return world end
         if name=='CollectionService' then return {GetTagged=function()return tagged end}end
         error('unexpected service '..name)
@@ -110,3 +112,8 @@ assert(not c.DirectUpgrades.dispatch(rows,s));assert(c.S.actionPending and #call
 for _,fn in ipairs(queue)do fn()end
 assert(not c.S.actionPending and #calls==0,'paused late callbacks must not submit new actions')
 print('PASS unknown price modifier, empty wallet, timeout lock and cancellation before late dispatch')
+local c,_,_,calls=fixture('missing-inversion');local s=assert(c.DirectUpgrades.state())
+local rows=c.DirectUpgrades.allocate(s,c.DirectUpgrades.cards(s));assert(c.DirectUpgrades.dispatch(rows,s) and #calls==2)
+local c=fixture('inversion-not-replicated');local s,why=c.DirectUpgrades.state()
+assert(not s and why=='INVERSION_PRICE_STATE_UNAVAILABLE')
+print('PASS real Main-world missing InversionCards folder; nonzero inversion still requires replicated pricing state')

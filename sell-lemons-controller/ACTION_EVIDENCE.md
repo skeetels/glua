@@ -25,3 +25,18 @@ The 4.0.2 economic fix is independent: unknown future unlock order no longer cer
 At 06:42:20 (UTC+5), a direct Upgrade(1) returned and Values/Upgrades.LemonStand changed from 2 to 3. This is the first live direct-action receipt. It does not prove concurrent actions.
 
 At 06:44:12, the full Balance export passed byte length and Adler32 verification (340421 / 914084511). Straight-line literal table assignments were read statically, with calls kept symbolic; no require, game function or bytecode execution occurred. The extracted upgrade dataset contains 18997 log10 prices. UpgradeMath mirrors the inspected cumulative-price subtraction and tail formula. DirectUpgrades checks the current module fingerprints, reads the owned Values state and dispatches batches whose total quote is funded. Integration acceptance remains pending.
+
+
+At 07:11 (UTC+5), ActionInspection v1 exported the Powers/Buy dependencies without invoking any game remote. Verified signatures:
+
+| Module | Bytes | Adler32 | Observation |
+|---|---:|---:|---|
+| InstanceTable | 13745 | 871009961 | A missing optional Configuration is represented by a detached empty instance; GetAll uses attributes and supported children. |
+| ClientTycoonPowers | 1499 | 4053663912 | UpgradeAsync forwards (power name, count) to own Remotes.UpgradePowerLevel. |
+| UIManageTilePower | 17271 | 1745023080 | Ordinary upgrade count is 1; MaxTier passes the remaining number of levels. |
+| ClientTycoonPurchase | 9384 | 2072785969 | Purchase is a RemoteFunction child; TryPurchaseAsync forwards remote-buy and permanent flags. |
+| UIPowerBuyNext | 4310 | 3175981909 | Selects first enabled unpurchased entry in Balance.PurchaseOrder and invokes TryPurchaseAsync(true). |
+| TycoonPurchase | 3004 | 2893670776 | Cash price uses Balance.PurchasePrices plus ascension penalty and inversion modifier. |
+| TycoonPurchases | 2551 | 2335596492 | IsPurchased uses the main Purchases attribute; its second result indicates permanence. |
+
+4.0.4 sends Purchase(true, false) only for ordinary cash purchases with a current quote and available Remote Buy uses. It sends UpgradePowerLevel(name, 1) only within the investor budget. A returned RPC alone never commits either action: the purchase ledger or exact power level must change in the same owned base/reset epoch. New live acceptance remains pending.

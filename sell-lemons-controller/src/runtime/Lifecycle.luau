@@ -107,7 +107,7 @@ for eventName,focused in pairs({WindowFocused=true,WindowFocusReleased=false}) d
 end
 __slctx.S.panel=__slctx.panel;__slctx.S.panelFrame=__slctx.frame;__slctx.S.panelVisibilityVersion=0
 __slctx.panel.Parent=__slctx.gui
-__slctx.log('LOADED','v4.0.3-dev; direct stand upgrades with shared budget and replicated receipts; other purchases and resets still use GUI; full live acceptance pending.')
+__slctx.log('LOADED','v4.0.4-dev; direct stand upgrades, Powers and ordinary Buy; reset menus remain; full live acceptance pending.')
 if __slctx.CONFIG.DirectUpgrades then print(__slctx.API.directReport())end
 task.spawn(function()
     while not __slctx.S.unloaded do
