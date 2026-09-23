@@ -5,7 +5,7 @@ ap=argparse.ArgumentParser();ap.add_argument('--luau-dir',type=Path,required=Tru
 suffix='.exe' if (args.luau_dir/'luau.exe').exists() else ''
 compiler=args.luau_dir/('luau-compile'+suffix)
 runtime=args.luau_dir/('luau'+suffix)
-files=sorted((ROOT/'src').rglob('*.luau'))+sorted((ROOT/'loader').glob('*.lua'))+[ROOT/'dist/controller.lua']
+files=sorted((ROOT/'src').rglob('*.luau'))+sorted((ROOT/'loader').glob('*.lua'))+sorted((ROOT/'dist').glob('*.lua'))
 for p in files:
     r=subprocess.run([str(compiler),str(p),'--text'],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
     if r.returncode:raise RuntimeError(f'{p}: {r.stderr.decode("utf-8",errors="replace")}')

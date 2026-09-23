@@ -620,9 +620,6 @@ function __slctx.ResetConfirm.poll(session)
         if __slctx.ResetConfirm.weakRebirth(d) then
             return __slctx.ResetConfirm.cancelRebirth(session,d,'GAME_SAYS_REWARD_TOO_SMALL')
         end
-        if session.expected and session.expected.authorize and not session.expected.authorize() then
-            return __slctx.ResetConfirm.cancelRebirth(session,d,'RESET_ECONOMY_CHANGED_AT_CONFIRMATION')
-        end
     end
     if state.closed then
         __slctx.status('WAIT_CONFIRM_RESULT','Диалог уже исчезал после клика. Повтор не отправляю; жду результат '..session.kind..'.')
@@ -633,6 +630,11 @@ function __slctx.ResetConfirm.poll(session)
         state.readyAt=nil
         __slctx.status('WAIT_CONFIRM_TIMER','Подтверждение '..session.kind..': '..tostring(why)..'. Жду разблокировки.')
         return true
+    end
+    -- A countdown/disabled confirmation is a wait state, not a new economic veto.
+    if session.kind=='rebirth' and not d.notice and session.expected and session.expected.authorize
+        and not session.expected.authorize(d) then
+        return __slctx.ResetConfirm.cancelRebirth(session,d,'RESET_ECONOMY_CHANGED_AT_CONFIRMATION')
     end
     state.readyAt=state.readyAt or __slctx.now()
     if __slctx.now()-state.firstSeen<__slctx.CONFIG.ConfirmInitialDelaySeconds
@@ -657,7 +659,7 @@ function __slctx.ResetConfirm.poll(session)
         -- A notice acknowledges a completed action. Its own disappearance
         -- is never used as the economic receipt, and spent cash is not reauthorized.
         if not d.notice and session.changed and session.changed() then return false end
-        if not d.notice and session.expected and session.expected.authorize and not session.expected.authorize() then return false end
+        if not d.notice and session.expected and session.expected.authorize and not session.expected.authorize(d) then return false end
         local fresh
         if d.notice then fresh=__slctx.ResetConfirm.staircaseNotice()
         else fresh=__slctx.ResetConfirm.inspect(session.kind,chosen,session.expected) end

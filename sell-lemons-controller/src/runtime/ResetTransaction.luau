@@ -57,8 +57,8 @@ function __slctx.doReset(kind)
     local function changed() return __slctx.S.resetChildPending==nil and resetProgressChanged() end
     session.changed=resetProgressChanged
     if kind=='rebirth' then
-        session.expected={authorize=function()
-            local current=__slctx.Strategy.peekResetInvestors()
+        session.expected={authorize=function(dialog)
+            local current=__slctx.Strategy.peekResetInvestors(session,dialog)
             return current and __slctx.Strategy.rebirthBarrier(current)
         end}
     end

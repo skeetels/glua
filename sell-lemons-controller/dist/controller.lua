@@ -4724,9 +4724,6 @@ function __slctx.ResetConfirm.poll(session)
         if __slctx.ResetConfirm.weakRebirth(d) then
             return __slctx.ResetConfirm.cancelRebirth(session,d,'GAME_SAYS_REWARD_TOO_SMALL')
         end
-        if session.expected and session.expected.authorize and not session.expected.authorize() then
-            return __slctx.ResetConfirm.cancelRebirth(session,d,'RESET_ECONOMY_CHANGED_AT_CONFIRMATION')
-        end
     end
     if state.closed then
         __slctx.status('WAIT_CONFIRM_RESULT','Диалог уже исчезал после клика. Повтор не отправляю; жду результат '..session.kind..'.')
@@ -4737,6 +4734,11 @@ function __slctx.ResetConfirm.poll(session)
         state.readyAt=nil
         __slctx.status('WAIT_CONFIRM_TIMER','Подтверждение '..session.kind..': '..tostring(why)..'. Жду разблокировки.')
         return true
+    end
+    -- A countdown/disabled confirmation is a wait state, not a new economic veto.
+    if session.kind=='rebirth' and not d.notice and session.expected and session.expected.authorize
+        and not session.expected.authorize(d) then
+        return __slctx.ResetConfirm.cancelRebirth(session,d,'RESET_ECONOMY_CHANGED_AT_CONFIRMATION')
     end
     state.readyAt=state.readyAt or __slctx.now()
     if __slctx.now()-state.firstSeen<__slctx.CONFIG.ConfirmInitialDelaySeconds
@@ -4761,7 +4763,7 @@ function __slctx.ResetConfirm.poll(session)
         -- A notice acknowledges a completed action. Its own disappearance
         -- is never used as the economic receipt, and spent cash is not reauthorized.
         if not d.notice and session.changed and session.changed() then return false end
-        if not d.notice and session.expected and session.expected.authorize and not session.expected.authorize() then return false end
+        if not d.notice and session.expected and session.expected.authorize and not session.expected.authorize(d) then return false end
         local fresh
         if d.notice then fresh=__slctx.ResetConfirm.staircaseNotice()
         else fresh=__slctx.ResetConfirm.inspect(session.kind,chosen,session.expected) end
@@ -4972,8 +4974,8 @@ function __slctx.doReset(kind)
     local function changed() return __slctx.S.resetChildPending==nil and resetProgressChanged() end
     session.changed=resetProgressChanged
     if kind=='rebirth' then
-        session.expected={authorize=function()
-            local current=__slctx.Strategy.peekResetInvestors()
+        session.expected={authorize=function(dialog)
+            local current=__slctx.Strategy.peekResetInvestors(session,dialog)
             return current and __slctx.Strategy.rebirthBarrier(current)
         end}
     end
@@ -6675,15 +6677,29 @@ function __slctx.Strategy.noteResetAbort(why)
     __slctx.Strategy.cancelResetIntent(why)
     __slctx.log('RESET_EXECUTION_ABORTED',tostring(why)..'; reset not counted as performed')
 end
-function __slctx.Strategy.peekResetInvestors()
-    -- Non-navigating read used only at the actual dispatch guard.
+function __slctx.Strategy.peekResetInvestors(session,dialog)
+    -- Before dispatch, the origin must be usable. After dispatch, a matching
+    -- confirmation owns readiness; its modal may disable the origin button.
     if not __slctx.visible(__slctx.g(__slctx.paths.investors)) then return nil,'INVESTOR_MENU_NOT_VISIBLE' end
     local base=__slctx.paths.investors..'/Body/'
     if __slctx.t(base..'Amount/What'):lower()~='investors' then return nil,'UNSUPPORTED_WORLD_CURRENCY' end
     local bank=__slctx.BN.parse(__slctx.t(base..'Amount/Quantity'));local reward=__slctx.BN.parse(__slctx.t(base..'Potential/Quantity'))
     local percent=tonumber(__slctx.t(base..'Bonus/Quantity'):match('%+?(%d+%.?%d*)%%'))
     if not bank or not reward or not percent then return nil,'INVESTOR_NUMBER_UNRECOGNIZED' end
-    return {investors=bank,reward=reward,perInvestor=percent/100,ready=__slctx.usable(__slctx.g(base..'Rebirth')),time=__slctx.now()}
+    local originReady=__slctx.usable(__slctx.g(base..'Rebirth'))
+    local ready=originReady
+    if session or dialog then
+        if not session or not dialog or session~=__slctx.S.resetSession or session.kind~='rebirth'
+            or not session.sent or not session.active or session.candidate~=dialog or dialog.notice
+            or not __slctx.ResetConfirm.valid(session) then return nil,'RESET_CONFIRM_CONTEXT_CHANGED' end
+        ready=__slctx.ResetConfirm.ready(dialog.button,dialog.root)
+        if not ready then return nil,'RESET_CONFIRM_NOT_READY' end
+        if not originReady and not session.originGateTransferred then
+            session.originGateTransferred=true
+            __slctx.log('REBIRTH_CONFIRM_GATE','matching ready dialog owns input; origin disabled; fresh economy guards retained')
+        end
+    end
+    return {investors=bank,reward=reward,perInvestor=percent/100,ready=ready,time=__slctx.now()}
 end
 -- RESET_INTENT_RUNTIME_281_END
 
@@ -8612,40 +8628,129 @@ end)()
 
 -- BEGIN src/runtime/DataInspection.luau
 components[#components+1] = (function()
--- Bounded, read-only schema report for validating a future data adapter.
--- PlayerGui, scripts, other players and remote invocations are deliberately excluded.
+-- Read-only schema discovery. Does not require modules, invoke remotes or open GUI.
 return function(ctx)
-    function ctx.API.inspectData()
-        local out={'Sell Lemons / client data candidates (unverified semantics)'}
-        local examined=0
-        local function relevant(name)
-            name=name:lower()
-            for _,word in ipairs({'cash','money','invest','rebirth','evol','halo','income','lemon','level','prestige'}) do
-                if name:find(word,1,true) then return true end
+    local function read(o,key)
+        local ok,value=pcall(function() return o[key] end)
+        if ok then return value end
+    end
+    local function call(o,method)
+        local ok,value=pcall(function() return o[method](o) end)
+        return ok and type(value)=='table' and value or {}
+    end
+    local function isa(o,class)
+        local ok,value=pcall(function() return o:IsA(class) end)
+        return ok and value
+    end
+    local function relevant(name)
+        -- CamelCase boundaries avoid matching 'evol' across AmbienceVolume.
+        local words=tostring(name):gsub('(%l)(%u)','%1 %2'):lower()
+        for word in words:gmatch('%a+') do
+            for _,prefix in ipairs({'cash','money','invest','rebirth','evol','halo','income',
+                'lemon','level','prestige','ascen','profit','multiplier','currency','balance',
+                'bank','stand','tycoon','replica','data','stat','upgrade'}) do
+                if word:sub(1,#prefix)==prefix then return true end
             end
-            return false
         end
-        local function valueText(value)
-            if type(value)=='number' or type(value)=='boolean' then return tostring(value) end
-            if type(value)=='string' and #value<=80 and value:match('^[%d%s%+%-%.,eE%%]+$') then return value end
-            return '['..type(value)..']'
+        return false
+    end
+    local function valueText(value)
+        if type(value)=='number' or type(value)=='boolean' then return tostring(value) end
+        if type(value)=='string' and #value<=96 then
+            -- Preserve formatted Cash such as '$3.339 undecillion'.
+            -- Other strings remain type-only, including arbitrary user text.
+            local s=value:match('^%s*(.-)%s*$')
+            if s:match('^[$%+%-]?%d') and s:match('^[%w%s%$%+%-%.,%%{}%[%]:]+$') then
+                return string.format('%q',s)
+            end
         end
-        local function visit(o,path,depth)
-            if examined>=600 or depth>6 or #out>=180 then return end
-            examined=examined+1
-            if o:IsA('PlayerGui') or o:IsA('LuaSourceContainer') or o:IsA('Backpack') then return end
-            local ok,attributes=pcall(o.GetAttributes,o)
-            if ok then
-                for name,value in pairs(attributes) do
-                    if relevant(name) then out[#out+1]=path..' @'..name..' = '..valueText(value) end
-                    if #out>=180 then break end
+        return '['..type(value)..']'
+    end
+    function ctx.API.inspectData()
+        local out={'[SL DATA v2] BEGIN t='..tostring(os.clock())..' (unverified semantics)'}
+        local total=0
+        local others={}
+        local ok,players=pcall(function() return game:GetService('Players'):GetPlayers() end)
+        if ok then
+            for _,p in ipairs(players) do
+                if p~=ctx.player then others[tostring(p.Name)]=true;others[tostring(p.UserId)]=true end
+            end
+        end
+        local function scan(root,label,maxNodes,maxLines,maxDepth)
+            out[#out+1]='[SL DATA v2] ROOT '..label
+            local queue={{root,label,0}};local head=1;local examined=0;local lines=0;local limited=false
+            local function emit(s)
+                if lines<maxLines then out[#out+1]=s;lines=lines+1 else limited=true end
+            end
+            while head<=#queue and examined<maxNodes and lines<maxLines do
+                local item=queue[head];head=head+1
+                local o,path,depth=item[1],item[2],item[3]
+                if o and (o==ctx.player or (not others[tostring(read(o,'Name'))] and not isa(o,'PlayerGui')
+                    and not isa(o,'Backpack') and not isa(o,'Player'))) then
+                    examined=examined+1
+                    local class=tostring(read(o,'ClassName'))
+                    local source=isa(o,'LuaSourceContainer')
+                    local remote=isa(o,'RemoteEvent') or isa(o,'RemoteFunction')
+                    if depth<=1 or (source or remote) and relevant(path) then
+                        emit(path..' ['..class..']'..(source and ' (name only; not required)' or ''))
+                    end
+                    if not source and not remote then
+                        local attrs=call(o,'GetAttributes');local keys={}
+                        for key in pairs(attrs) do if relevant(key) then keys[#keys+1]=key end end
+                        table.sort(keys)
+                        for _,key in ipairs(keys) do emit(path..' @'..key..' = '..valueText(attrs[key])) end
+                        if isa(o,'ValueBase') and relevant(path) then
+                            emit(path..' .Value = '..valueText(read(o,'Value')))
+                        end
+                    end
+                    if not source and not remote and not isa(o,'BasePart') then
+                        local children=call(o,'GetChildren')
+                        if depth>=maxDepth and #children>0 then limited=true end
+                        if depth<maxDepth then
+                            for _,child in ipairs(children) do
+                                if #queue>=maxNodes then limited=true;break end
+                                queue[#queue+1]={child,path..'/'..tostring(read(child,'Name')),depth+1}
+                            end
+                        end
+                    end
                 end
             end
-            if o:IsA('ValueBase') and relevant(path) then out[#out+1]=path..' .Value = '..valueText(ctx.prop(o,'Value')) end
-            for _,child in ipairs(o:GetChildren()) do visit(child,path..'/'..child.Name,depth+1) end
+            total=total+examined
+            if head<=#queue then limited=true end
+            out[#out+1]='[SL DATA v2] END_ROOT '..label..' examined='..examined..' limited='..tostring(limited)
         end
-        visit(ctx.player,'LocalPlayer',0)
-        out[#out+1]='Examined '..examined..' objects. No candidates were auto-bound or treated as reset authority.'
+        scan(ctx.player,'LocalPlayer',160,100,7)
+        local storageOK,storage=pcall(function() return game:GetService('ReplicatedStorage') end)
+        if storageOK then scan(storage,'ReplicatedStorage',700,150,9) end
+        -- Only descend into a tycoon explicitly owned by LocalPlayer.
+        local worldOK,world=pcall(function() return game:GetService('Workspace') end)
+        if worldOK then
+            local listed=0
+            for _,root in ipairs(call(world,'GetChildren')) do
+                if tostring(read(root,'Name')):lower():match('^tycoon') then
+                    listed=listed+1;if listed>20 then out[#out+1]='[SL DATA v2] Tycoon root list limited';break end
+                    local owner=nil
+                    for key,value in pairs(call(root,'GetAttributes')) do
+                        local k=tostring(key):lower():gsub('[^%a]','')
+                        if k=='owner' or k=='ownerid' or k=='owneruserid' or k=='player' or k=='playerid' or k=='userid' then
+                            owner=value;break
+                        end
+                    end
+                    if owner==nil then
+                        for _,child in ipairs(call(root,'GetChildren')) do
+                            local n=tostring(read(child,'Name')):lower()
+                            if (n=='owner' or n=='player') and isa(child,'ValueBase') then owner=read(child,'Value');break end
+                        end
+                    end
+                    local ours=owner~=nil and (owner==ctx.player or owner==ctx.player.UserId
+                        or owner==tostring(ctx.player.UserId) or owner==ctx.player.Name)
+                    local label='Workspace/'..tostring(read(root,'Name'))
+                    out[#out+1]='[SL DATA v2] '..label..' owner='..(ours and 'local' or owner==nil and 'unresolved' or 'other')
+                    if ours then scan(root,label,500,100,6) end
+                end
+            end
+        end
+        out[#out+1]='[SL DATA v2] END examined='..total..'. No candidates auto-bound; no reset authority. Limits do not prove absence of data.'
         return table.concat(out,'\n')
     end
 end

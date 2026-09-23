@@ -400,15 +400,29 @@ function __slctx.Strategy.noteResetAbort(why)
     __slctx.Strategy.cancelResetIntent(why)
     __slctx.log('RESET_EXECUTION_ABORTED',tostring(why)..'; reset not counted as performed')
 end
-function __slctx.Strategy.peekResetInvestors()
-    -- Non-navigating read used only at the actual dispatch guard.
+function __slctx.Strategy.peekResetInvestors(session,dialog)
+    -- Before dispatch, the origin must be usable. After dispatch, a matching
+    -- confirmation owns readiness; its modal may disable the origin button.
     if not __slctx.visible(__slctx.g(__slctx.paths.investors)) then return nil,'INVESTOR_MENU_NOT_VISIBLE' end
     local base=__slctx.paths.investors..'/Body/'
     if __slctx.t(base..'Amount/What'):lower()~='investors' then return nil,'UNSUPPORTED_WORLD_CURRENCY' end
     local bank=__slctx.BN.parse(__slctx.t(base..'Amount/Quantity'));local reward=__slctx.BN.parse(__slctx.t(base..'Potential/Quantity'))
     local percent=tonumber(__slctx.t(base..'Bonus/Quantity'):match('%+?(%d+%.?%d*)%%'))
     if not bank or not reward or not percent then return nil,'INVESTOR_NUMBER_UNRECOGNIZED' end
-    return {investors=bank,reward=reward,perInvestor=percent/100,ready=__slctx.usable(__slctx.g(base..'Rebirth')),time=__slctx.now()}
+    local originReady=__slctx.usable(__slctx.g(base..'Rebirth'))
+    local ready=originReady
+    if session or dialog then
+        if not session or not dialog or session~=__slctx.S.resetSession or session.kind~='rebirth'
+            or not session.sent or not session.active or session.candidate~=dialog or dialog.notice
+            or not __slctx.ResetConfirm.valid(session) then return nil,'RESET_CONFIRM_CONTEXT_CHANGED' end
+        ready=__slctx.ResetConfirm.ready(dialog.button,dialog.root)
+        if not ready then return nil,'RESET_CONFIRM_NOT_READY' end
+        if not originReady and not session.originGateTransferred then
+            session.originGateTransferred=true
+            __slctx.log('REBIRTH_CONFIRM_GATE','matching ready dialog owns input; origin disabled; fresh economy guards retained')
+        end
+    end
+    return {investors=bank,reward=reward,perInvestor=percent/100,ready=ready,time=__slctx.now()}
 end
 -- RESET_INTENT_RUNTIME_281_END
 

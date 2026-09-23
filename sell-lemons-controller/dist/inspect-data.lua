@@ -1,3 +1,5 @@
+-- Generated read-only diagnostic. Does not start or reload the controller.
+local initialize=(function()
 -- Read-only schema discovery. Does not require modules, invoke remotes or open GUI.
 return function(ctx)
     local function read(o,key)
@@ -123,4 +125,15 @@ return function(ctx)
         out[#out+1]='[SL DATA v2] END examined='..total..'. No candidates auto-bound; no reset authority. Limits do not prove absence of data.'
         return table.concat(out,'\n')
     end
+end
+
+end)()
+assert(game.PlaceId==79268393072444,"Run in Sell Lemons")
+local context={API={},player=game:GetService("Players").LocalPlayer}
+assert(context.player,"LocalPlayer is not ready")
+initialize(context)
+for sample=1,2 do
+    print("[SL DATA v2] SAMPLE "..sample)
+    for line in context.API.inspectData():gmatch("[^\n]+") do print(line) end
+    if sample==1 then task.wait(3) end
 end

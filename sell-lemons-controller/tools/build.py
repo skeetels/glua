@@ -22,13 +22,25 @@ def main():
     data,sources=bundle();dest=ROOT/'dist/controller.lua'
     integrity={'bundle_sha256':hashlib.sha256(data.encode()).hexdigest(),'modules':sources}
     receipt=json.dumps(integrity,indent=2)+'\n'
+    probe=('-- Generated read-only diagnostic. Does not start or reload the controller.\n'
+        'local initialize=(function()\n'+(ROOT/'src/runtime/DataInspection.luau').read_text(encoding='utf-8')+
+        '\nend)()\nassert(game.PlaceId==79268393072444,"Run in Sell Lemons")\n'
+        'local context={API={},player=game:GetService("Players").LocalPlayer}\n'
+        'assert(context.player,"LocalPlayer is not ready")\ninitialize(context)\n'
+        'for sample=1,2 do\n'
+        '    print("[SL DATA v2] SAMPLE "..sample)\n'
+        '    for line in context.API.inspectData():gmatch("[^\\n]+") do print(line) end\n'
+        '    if sample==1 then task.wait(3) end\n'
+        'end\n')
     if args.check:
         assert dest.read_text(encoding='utf-8')==data,'Bundle is stale: run python tools/build.py'
         assert (ROOT/'dist/integrity.json').read_text()==receipt,'Integrity file is stale'
+        assert (ROOT/'dist/inspect-data.lua').read_text(encoding='utf-8')==probe,'Diagnostic is stale'
     else:
         dest.parent.mkdir(parents=True,exist_ok=True)
         dest.write_text(data,encoding='utf-8',newline='\n')
         (ROOT/'dist/integrity.json').write_text(receipt,encoding='utf-8',newline='\n')
+        (ROOT/'dist/inspect-data.lua').write_text(probe,encoding='utf-8',newline='\n')
     print(f'{len(sources)} modules; {len(data.encode()):,} bytes; SHA256 {integrity["bundle_sha256"]}')
 
 if __name__=='__main__':main()
