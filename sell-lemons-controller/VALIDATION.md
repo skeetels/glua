@@ -5,7 +5,7 @@ Source: supplied Sell Lemons Autofarm 3.3.3. Migrated top-level lexical bindings
 Passed:
 
 - Deterministic `tools/build.py --check` against source/integrity manifest.
-- Luau bytecode compilation of 43 files: 35 controller components, two standalone diagnostic sources, two loaders, controller and three standalone diagnostics.
+- Luau bytecode compilation of 45 files: 35 controller components, three standalone diagnostic/probe sources, two loaders, controller and four standalone tools.
 - 12 numeric/catalogue/observation/recovery-policy scenarios.
 - 8 supervisor scenarios, including repeated +1 work requesting a timely review without abandoning a partial pass, cancellation of recovery by manual pause, and no auto-resume during ambiguous transactions.
 - Full component initialization, diagnostic report, missing-data handling, idempotent unload, and listener cleanup in a minimal mock engine.
@@ -13,6 +13,7 @@ Passed:
 - 4 loader fixtures: success, HTTP 401, HTTP 404 and cancellation during a request. The mock asserts the GitHub destination and that authorization is cleared after completion; no real token was used.
 - 4 public request-loader fixtures: success without HttpGet, function fallback when request is a table, HTTP rejection before compilation, and compile failure before execution. No credentials attached.
 - 9 finish-forecast regression groups. The price-order x10 scenario first failed against the old runtime (optimistic scenario incorrectly acquired FINISH); after the patch it stays an estimate. Cases cover paid-before-effective bonuses, actual gate ordering without mutating the ledger, funded completion without rate data, fresh income invalidation, receipts preserving the deadline, prompt review of an unaffordable tail, retaining the current pass, cash-funded recovery, and preserving a ready evolution. These are offline scenarios, not a completed live Halo.
+- 6 direct-upgrade probe groups: all requests scheduled before awaiting responses, combined affordability, pending-controller exclusion, replicated-level receipts, RPC rejection, and reset during dispatch. This standalone one-round probe is not part of the controller.
 - 4 data-inspection fixture groups: formatted cash and exclusions, fresh resampling, explicit limits, and missing-root handling.
 - 4 rebirth-confirmation fixture groups: disabled origin with a ready matching dialog, countdown waiting, changed economy cancellation, and rejection of mismatched/stale/undispatched sessions. These are a simulated regression sequence, not a successful live rebirth.
 - 8 replicated-state fixture groups using the numeric values observed in the live log: independent encoding calibration, hidden updates and huge exponents, bank isolation, reset invalidation, unknown zero sentinel, linear encoding/mismatch revocation, ownership loss, and absent attributes.
@@ -32,6 +33,7 @@ Observed in the user's current Roblox player log on September 23 (UTC+5):
 - 05:58:20: standalone action capture reported hookmetamethod=false, getnamecallmethod=false, decompile=true, getscriptbytecode=true, then UNSUPPORTED. No game action was sent or captured.
 - 06:04:44: a staged loader test reported HTTP=false before compilation. Prior one-line launches failed with attempt to call a table value. At 06:07:52 the request-based loader successfully launched the client inspector; it reached DONE at 06:07:57.
 - 06:07:52: the new owned base was Workspace.Tycoon3, with INTERNAL_STAND_KEYS LemonStand despite the displayed Lime name. Upgrade RemoteFunctions and ClientTycoonUpgrades/TycoonUpgrades/UIManageTileEarner modules were found. All ten decompile attempts returned Bytecode version (12) unhandled, so no signature was recovered. Inspector v2 can export bounded bytecode for five specific handler modules for offline inspection; that fallback is not yet live-tested.
+- 06:13:25 and 06:18:33: bounded bytecode exports succeeded. Nine distinct module blobs passed length and Adler32 verification. A local read-only parser based on official Luau Bytecode.h/lvmload.cpp parsed v12; one opcode interpretation passed structural checks throughout each file. UIManageTileEarner calls Earner:Upgrade(info.Count, true); ClientTycoonEarner.UpgradeAsync calls the stand's UpgradeRemote:InvokeServer(count or 1); RemoteRequest forwards the same arguments to the RemoteFunction. GetUpgradePrice returns price and count; future direct batches must reconcile replicated levels. No bytecode was executed locally. The new probe's live call remains untested.
 
 Not passed / not performed:
 

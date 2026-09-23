@@ -38,12 +38,16 @@ def main():
     client=('-- Generated client text inspection. No game remote calls or module execution.\n'
         'local inspect=(function()\n'+(ROOT/'src/diagnostics/ClientInspection.luau').read_text(encoding='utf-8')+
         '\nend)()\nreturn inspect()\n')
+    direct=('-- Generated one-round direct upgrade probe. Buys at most +1 on each owned enabled stand.\n'
+        'local probe=(function()\n'+(ROOT/'src/diagnostics/DirectUpgradeProbe.luau').read_text(encoding='utf-8')+
+        '\nend)()\nreturn probe()\n')
     if args.check:
         assert dest.read_text(encoding='utf-8')==data,'Bundle is stale: run python tools/build.py'
         assert (ROOT/'dist/integrity.json').read_text()==receipt,'Integrity file is stale'
         assert (ROOT/'dist/inspect-data.lua').read_text(encoding='utf-8')==probe,'Diagnostic is stale'
         assert (ROOT/'dist/trace-upgrades.lua').read_text(encoding='utf-8')==capture,'Action capture is stale'
         assert (ROOT/'dist/inspect-client.lua').read_text(encoding='utf-8')==client,'Client inspection is stale'
+        assert (ROOT/'dist/probe-direct-upgrade.lua').read_text(encoding='utf-8')==direct,'Direct probe is stale'
     else:
         dest.parent.mkdir(parents=True,exist_ok=True)
         dest.write_text(data,encoding='utf-8',newline='\n')
@@ -51,6 +55,7 @@ def main():
         (ROOT/'dist/inspect-data.lua').write_text(probe,encoding='utf-8',newline='\n')
         (ROOT/'dist/trace-upgrades.lua').write_text(capture,encoding='utf-8',newline='\n')
         (ROOT/'dist/inspect-client.lua').write_text(client,encoding='utf-8',newline='\n')
+        (ROOT/'dist/probe-direct-upgrade.lua').write_text(direct,encoding='utf-8',newline='\n')
     print(f'{len(sources)} modules; {len(data.encode()):,} bytes; SHA256 {integrity["bundle_sha256"]}')
 
 if __name__=='__main__':main()
