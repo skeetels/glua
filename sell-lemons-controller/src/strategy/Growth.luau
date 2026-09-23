@@ -109,7 +109,7 @@ function __slctx.Strategy.growBuy()
 end
 -- A pass freezes stand identities/order, never their cash quotes.
 -- ECONOMIC_RUNTIME_BEGIN
-function __slctx.Strategy.recordTiming(kind,seconds)
+function __slctx.Strategy.recordTiming(kind,seconds,overlapped)
     if not seconds or seconds<=0 or seconds~=seconds then return end
     local r=__slctx.Strategy.route();r.timings=r.timings or {}
     r.cadence=r.cadence or {};local prev=r.lastReceiptTiming
@@ -122,7 +122,7 @@ function __slctx.Strategy.recordTiming(kind,seconds)
     t.count=t.count+1;t.total=t.total+seconds
     t.ewma=t.ewma and t.ewma*0.7+seconds*0.3 or seconds
     t.maximum=math.max(t.maximum or 0,seconds);r.timings[kind]=t
-    if kind=='buy' or kind=='upgrade' then r.runServiceSeconds=(r.runServiceSeconds or 0)+seconds end
+    if (kind=='buy' or kind=='upgrade') and not overlapped then r.runServiceSeconds=(r.runServiceSeconds or 0)+seconds end
     if kind=='upgrade' then
         r.runUpgradeSeconds=(r.runUpgradeSeconds or 0)+seconds;r.runUpgradeActions=(r.runUpgradeActions or 0)+1
         if r.pass and not r.pass.finished then r.pass.upgradeSeconds=(r.pass.upgradeSeconds or 0)+seconds end

@@ -81,9 +81,11 @@ return function(ctx)
         local level=(attr(powers,'UpgradeStack') or 0)+(attr(child(powers,'Permanent'),'UpgradeStack') or 0)
         local selected=attr(child(powers,'Selected'),'UpgradeStack')
         if not integer(level) or level>4 or selected~=nil and not integer(selected) then return nil,'STACK_LEVEL_UNKNOWN' end
-        if selected~=nil then level=math.min(selected,level)end
+        -- The selector limits GUI quotes. UpgradeAsync sends an explicit count;
+        -- direct allocation uses the purchased tier, never an unowned tier.
         local cap=({[0]=1,5,25,100,math.huge})[level]
-        local s={own=own,root=root,values=values,levels=levels,powers=powers,cash=cash,cap=cap,shift=asc*math.log10(3.33),epoch={},stands={},time=ctx.now()}
+        local s={own=own,root=root,values=values,levels=levels,powers=powers,cash=cash,cap=cap,stackLevel=level,selectedStack=selected,
+            shift=asc*math.log10(3.33),epoch={},stands={},time=ctx.now()}
         for _,key in ipairs(counterKeys)do s.epoch[key]=attr(values,key)end
         local seen={}
         for _,instance in ipairs(game:GetService('CollectionService'):GetTagged('Tycoon.Earner'))do
@@ -98,10 +100,49 @@ return function(ctx)
         if #s.stands>8 then return nil,'STAND_COUNT_CHANGED' end
         return s
     end
-    function D.same(a,b)
-        if not b or a.own~=b.own or a.values~=b.values or a.levels~=b.levels or a.cap~=b.cap or a.shift~=b.shift then return false end
+    function D.sameCycle(a,b)
+        if not a or not b or a.own~=b.own or a.root~=b.root or a.values~=b.values or a.levels~=b.levels then return false end
         for _,key in ipairs(counterKeys)do if a.epoch[key]~=b.epoch[key] then return false end end
         return true
+    end
+    function D.same(a,b)
+        return D.sameCycle(a,b) and a.cap==b.cap and a.shift==b.shift
+    end
+    function D.proof(rec)
+        if not rec.sent or not rec.returned or not rec.ok then return false,'RPC_PENDING_OR_FAILED' end
+        local c=rec.c;local s=rec.snapshot or c.snapshot
+        if not s or not s.own.Parent or attr(s.own,'Disabled')==true then return false,'BASE_UNAVAILABLE' end
+        local owner=child(s.own,'Owner')
+        if not owner or owner.Value~=ctx.player or child(s.own,'Values')~=s.root
+            or child(s.root,'Values')~=s.values or child(s.root,'Upgrades')~=s.levels then return false,'BASE_CHANGED' end
+        for _,key in ipairs(counterKeys)do
+            if attr(s.values,key)~=s.epoch[key] then return false,'RESET_COUNTER_CHANGED '..key end
+        end
+        if not c.stand.instance:IsDescendantOf(s.own) or child(c.stand.instance,'Upgrade')~=c.stand.remote then
+            return false,'STAND_CHANGED'
+        end
+        local observed=attr(s.levels,c.key) or 0;local expected=c.level+c.units
+        -- A power purchase/selector change is not a reset. Price/cap revalidation
+        -- belongs before dispatch, not in the receipt for already sent units.
+        return observed==expected,'level='..tostring(observed)..'; expected='..expected
+    end
+    local oldProof=ctx.Safety.proof;local oldCommit=ctx.Safety.commit
+    function ctx.Safety.proof(rec)
+        if rec.c.source=='direct' then return D.proof(rec)end
+        return oldProof(rec)
+    end
+    function ctx.Safety.commit(rec,late)
+        if rec.c.source~='direct' then return oldCommit(rec,late)end
+        if rec.committed or not D.proof(rec) then return end
+        -- One wall-clock timing per parallel batch, not one per stand.
+        rec.started=nil
+        oldCommit(rec,false)
+        local p=ctx.Strategy.route().pass
+        if p and p==rec.pass and not p.finished then
+            p.purchases=p.purchases+1;p.levels=p.levels+rec.c.units
+        end
+        ctx.log(late and 'DIRECT_LATE_RECEIPT' or 'DIRECT_UPGRADE_RECEIPT',
+            rec.c.key..' '..rec.c.level..'->'..(rec.c.level+rec.c.units)..'; +'..rec.c.units)
     end
     local function earnings(s,stand)
         local income=child(s.root,'Income');local stream=child(child(income,'Streams'),stand.name)
@@ -168,11 +209,16 @@ return function(ctx)
         assert(total<=s.cash,'DIRECT_SHARED_BUDGET_EXCEEDED')
         return out,total
     end
-    function D.dispatch(rows,s)
-        if #rows==0 then return true,{}end
+    function D.dispatch(rows,s,construction)
+        local requestCount=#rows+(construction and 1 or 0)
+        if requestCount==0 then return true,{}end
         if not ctx.live() or ctx.S.actionPending or ctx.S.resetChildPending or ctx.S.resetSession then return false,'ACTION_PENDING' end
         local fresh,why=D.state();if not D.same(s,fresh) then return false,why or 'STATE_CHANGED' end
         local sum=-math.huge;local seen={}
+        if construction then
+            if not ctx.DirectPurchases.buyValid(construction)then return false,'BUY_QUOTE_CHANGED' end
+            sum=construction.priceLog
+        end
         for _,c in ipairs(rows)do
             if seen[c.key] or not integer(c.units) or c.units<1 or c.units>s.cap or (attr(fresh.levels,c.key) or 0)~=c.level
                 or not c.stand.instance:IsDescendantOf(fresh.own) or not enabled(c.stand.instance,fresh.own)
@@ -181,53 +227,55 @@ return function(ctx)
             seen[c.key]=true;sum=M.add(sum,c.priceLog)
         end
         if sum>fresh.cash-1e-9 then return false,'QUOTE_UNAFFORDABLE'end
-        local batch={pending=#rows,records={},started=ctx.now(),epoch=ctx.S.epoch};ctx.S.actionPending=batch
+        local batch={pending=requestCount,records={},started=ctx.now(),epoch=ctx.S.epoch};ctx.S.actionPending=batch
         D.batch=batch
-        for _,c in ipairs(rows)do batch.records[#batch.records+1]={c=c,started=batch.started,sent=false}end
-        ctx.log('DIRECT_BATCH_SENT','stands='..#rows..'; combined='..ctx.BN.format(M.bn(sum))..'; parallel Upgrade requests; no GUI')
+        if construction then batch.records[#batch.records+1]={c=construction,snapshot=s,started=batch.started,sent=false}end
+        for _,c in ipairs(rows)do batch.records[#batch.records+1]={c=c,snapshot=s,pass=ctx.Strategy.route().pass,sent=false}end
+        ctx.log(construction and 'DIRECT_BUILD_BATCH_SENT' or 'DIRECT_BATCH_SENT',
+            'stands='..#rows..'; cap='..s.cap..'; buy='..tostring(construction and construction.key)..'; combined='..ctx.BN.format(M.bn(sum))..'; parallel requests; no GUI')
         for _,rec in ipairs(batch.records)do
             task.spawn(function()
                 local ok,err=pcall(function()
                     local current=D.state();assert(D.same(s,current),'STATE_CHANGED')
                     assert(ctx.live(batch.epoch),'PAUSED_BEFORE_DISPATCH')
-                    assert((attr(current.levels,rec.c.key) or 0)==rec.c.level,'LEVEL_CHANGED')
-                    assert(enabled(rec.c.stand.instance,current.own),'STAND_DISABLED')
-                    rec.sent=true;rec.c.stand.remote:InvokeServer(rec.c.units)
+                    if rec.c.source=='directBuy' then
+                        assert(ctx.DirectPurchases.buyValid(rec.c),'BUY_QUOTE_CHANGED')
+                        rec.sent=true;rec.c.remote:InvokeServer(true,false)
+                    else
+                        assert((attr(current.levels,rec.c.key) or 0)==rec.c.level,'LEVEL_CHANGED')
+                        assert(enabled(rec.c.stand.instance,current.own),'STAND_DISABLED')
+                        rec.sent=true;rec.c.stand.remote:InvokeServer(rec.c.units)
+                    end
                 end)
                 rec.returned=true;rec.ok=ok;rec.error=not ok and tostring(err) or nil;batch.pending=batch.pending-1
                 if batch.waitEnded and batch.pending==0 and ctx.S.actionPending==batch then ctx.S.actionPending=nil end
             end)
         end
         repeat
-            local current=D.state();local confirmed=0
+            local confirmed,unsent=0,0
             for _,rec in ipairs(batch.records)do
-                if rec.returned and rec.ok and D.same(s,current) and (attr(current.levels,rec.c.key) or 0)==rec.c.level+rec.c.units then
-                    rec.proved=true;confirmed=confirmed+1
-                end
+                if ctx.Safety.proof(rec) then confirmed=confirmed+1 end
+                if rec.returned and not rec.sent then unsent=unsent+1 end
             end
-            if batch.pending==0 and confirmed==#rows then break end
+            if batch.pending==0 and confirmed+unsent==requestCount then break end
             task.wait(.05);ctx.S.actionYieldSerial=(ctx.S.actionYieldSerial or 0)+1
         until ctx.now()-batch.started>=8
         batch.waitEnded=true
         if batch.pending==0 and ctx.S.actionPending==batch then ctx.S.actionPending=nil end
-        local all=true;local route=ctx.Strategy.route();route.blocked=route.blocked or {}
-        local final=D.state()
+        local all,unresolved=true,false;local route=ctx.Strategy.route();route.blocked=route.blocked or {}
         for _,rec in ipairs(batch.records)do
             local c=rec.c
-            rec.proved=rec.proved and D.same(s,final) and (attr(final.levels,c.key) or 0)==c.level+c.units
+            local reason;rec.proved,reason=ctx.Safety.proof(rec)
             if rec.proved then
-                ctx.progress('upgrade');ctx.Strategy.receipt(c,nil)
-                if route.pass and not route.pass.finished then
-                    route.pass.purchases=route.pass.purchases+1;route.pass.levels=route.pass.levels+c.units
-                end
-                ctx.log('DIRECT_UPGRADE_RECEIPT',c.key..' '..c.level..'->'..(c.level+c.units)..'; +'..c.units)
+                ctx.Safety.commit(rec)
+                if c.source=='directBuy' then ctx.log('DIRECT_ACTION_RECEIPT','directBuy '..c.name..'; joint build batch; replicated state checked')end
             elseif rec.sent then
-                all=false;route.blocked[ctx.Safety.key(c)]={c=c,receipt=rec,reason='DIRECT_OUTCOME_UNRESOLVED'}
-                ctx.log('DIRECT_UPGRADE_UNRESOLVED',c.key..'; no repeat; '..tostring(rec.error or 'replicated level did not confirm'))
-            else all=false end
+                all=false;unresolved=true;route.blocked[ctx.Safety.key(c)]={c=c,receipt=rec,reason='DIRECT_OUTCOME_UNRESOLVED'}
+                ctx.log(c.source=='directBuy' and 'DIRECT_ACTION_UNRESOLVED' or 'DIRECT_UPGRADE_UNRESOLVED',c.key..'; no repeat; '..tostring(rec.error or reason or 'purchase ledger not confirmed'))
+            else all=false;ctx.log('DIRECT_REPLAN',c.key..'; not sent; '..tostring(rec.error))end
         end
-        if #rows>0 then ctx.Strategy.recordTiming('upgrade',math.max(.001,ctx.now()-batch.started))end
-        if not all then ctx.pause('DIRECT_BATCH_UNRESOLVED','Прямые улучшения не полностью подтверждены; повторов нет. Подробности в журнале.')end
+        if #rows>0 then ctx.Strategy.recordTiming('upgrade',math.max(.001,ctx.now()-batch.started),construction~=nil)end
+        if unresolved or batch.pending>0 then ctx.pause('DIRECT_BATCH_UNRESOLVED','Прямые покупки не полностью подтверждены; повторов нет. Подробности в журнале.')end
         return all,batch.records
     end
     function D.purchase(c)
@@ -239,6 +287,7 @@ return function(ctx)
         local s,why=D.state()
         if not s then ctx.pause('DIRECT_STATE_UNAVAILABLE',tostring(why));return end
         local cards=D.cards(s);local r=ctx.Strategy.route();r.cards=cards;ctx.Strategy.quotes()
+        r.batchSelected=s.cap==math.huge and 'max' or s.cap;r.maxUnavailable=s.cap~=math.huge
         if not r.pass or r.pass.finished then ctx.Strategy.beginPass(cards);r.pass.direct=true end
         local p=r.pass
         if not p.direct then ctx.pause('DIRECT_PASS_MODE_CHANGED','Перезапусти фарм для нового режима прохода.');return end
@@ -255,7 +304,7 @@ return function(ctx)
         local ok=D.dispatch(quotes,s)
         if not ok then return end
         p.index=#p.order+1
-        local after,err=D.state();if not D.same(s,after) then ctx.pause('DIRECT_STATE_CHANGED',tostring(err or 'Состояние изменилось'));return end
+        local after,err=D.state();if not D.sameCycle(s,after) then ctx.pause('DIRECT_STATE_CHANGED',tostring(err or 'Состояние изменилось'));return end
         ctx.Strategy.finishPass(D.cards(after))
     end
     local guiCards=ctx.readCards
@@ -289,7 +338,7 @@ return function(ctx)
     function ctx.API.directReport()
         local ok,s,why=pcall(D.state)
         if not ok or not s then return '[SL HEADLESS] unavailable: '..tostring(ok and why or s)end
-        local out={'[SL HEADLESS] '..s.own.Name..'; cashLog='..s.cash..'; cap='..s.cap..'; priceShift='..s.shift}
+        local out={'[SL HEADLESS] '..s.own.Name..'; cashLog='..s.cash..'; cap='..s.cap..'; ownedStack='..s.stackLevel..'; selectedStack='..tostring(s.selectedStack)..'; priceShift='..s.shift}
         for _,c in ipairs(D.cards(s))do out[#out+1]=c.key..' level='..c.level..' count='..c.units..' costLog='..c.priceLog..' income='..ctx.BN.format(c.income)..' period='..c.period end
         return table.concat(out,'\n')
     end

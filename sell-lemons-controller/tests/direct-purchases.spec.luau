@@ -54,9 +54,19 @@ local function fixture(mode)
     c.Powers={read=gui,proof=gui};c.HaloRun={tryBuyHold=gui}
     local route={blocked={},powerBase=c.BN.new(1,40),powerUsed=c.BN.new(0)}
     c.S.route=route
+    c.step=function()calls[#calls+1]={'next-step',c.S.counts.buy}end
     c.Strategy={route=function()return c.S.route end,safePurchase=gui,
         new=function()return {phase='BOOT',blocked={},cards={},models={},bootEvolution=true,bootTablet=true,powerUsed=c.BN.new(0)}end}
     c.Safety={proof=gui,key=function(q)return q.path end,commit=function(rec)c.S.counts.buy=c.S.counts.buy+1;rec.committed=true end}
+    c.Strategy.reconcileBlocked=function()
+        for key,v in pairs(c.S.route.blocked)do
+            if c.Safety.proof(v.receipt)then c.Safety.commit(v.receipt,true);c.S.route.blocked[key]=nil end
+        end
+    end
+    c.Strategy.stopForBlocked=function()
+        if next(c.S.route.blocked)then c.pause('DIRECT_OUTCOME_UNRESOLVED');return true end
+        return false
+    end
     local env=setmetatable({game={GetService=function(_,name)assert(name=='CollectionService');return {GetTagged=function(_,tag)assert(tag=='Tycoon.Purchase');return tagged end}end},
         task={spawn=function(fn)queue[#queue+1]=fn end,wait=function(dt)
             time=time+dt;if mode=='timeout' then return end
@@ -130,3 +140,14 @@ local fresh=c.Strategy.route()
 assert(fresh.powerBase==r.powerBase and fresh.powerUsed==r.powerUsed and not fresh.powerUnresolved,'rebirth must retain the investor budget, while retiring previous-cycle outcomes')
 assert(c.DirectPurchases.refreshEpoch() and c.Strategy.route()==fresh,'same counter sample must not restart the route repeatedly')
 print('PASS rejected Buy followed by external evolution resumes with fresh quotes; uncertain counters and pending requests retain blocks; rebirth preserves spending budget')
+do
+    local c,_,_,ledger,calls=fixture('silent')
+    assert(not c.Strategy.safePurchase(assert(c.readBuy())) and #calls==1)
+    c.S.running=true;c.step()
+    assert(not c.S.running and #calls==1,'unresolved action reached the next economic step')
+    ledger.attrs.Juicer=true;c.S.running=true;c.step()
+    assert(c.S.running and not next(c.Strategy.route().blocked) and c.S.counts.buy==1)
+    assert(#calls==2 and calls[2][1]=='next-step' and calls[2][2]==1,'late receipt must precede new actions')
+    c.step();assert(c.S.counts.buy==1)
+end
+print('PASS resume reconciles late direct receipt before new Powers/Buy work; unknown result sends nothing')

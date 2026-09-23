@@ -86,18 +86,29 @@ end
 -- CONSTRUCTION_RUNTIME_282_END
 function __slctx.Strategy.rebuildInputSeconds(goal)
     local r=__slctx.Strategy.route();local work={};local sources=0
+    local direct=__slctx.CONFIG.DirectUpgrades==true
     for _,c in ipairs(r.cards or {}) do
         local count=__slctx.Core.count(c.count)
         if not count then return __slctx.CONFIG.InitialFullLayoutSeconds,'incomplete layout; initial allowance' end
-        work[c.path]=math.max(0,count-1);sources=sources+1
+        work[c.path]=math.max(0,count-(c.source=='direct' and 0 or 1));sources=sources+1
+        direct=direct and c.source=='direct'
     end
     local batch=goal and goal.canBuyAfter and goal.nextBatch or __slctx.Strategy.largestBatch()
     local clicks=__slctx.Planner.workClicks(work,batch)
     if sources==0 or not clicks then return __slctx.CONFIG.InitialFullLayoutSeconds,'unobserved layout/batch; initial allowance' end
+    if direct then
+        -- The measured upgrade latency is for a complete parallel batch.
+        -- Sum only serial GUI actions; direct stands share each response round.
+        clicks=0
+        for _,levels in pairs(work)do
+            clicks=math.max(clicks,levels>0 and (batch=='max' and 1 or math.ceil(levels/batch)) or 0)
+        end
+    end
     local buys=math.max(r.runBuyCount or 0,__slctx.Strategy.baseProgress().depth or 0)
     local input=buys*__slctx.Strategy.actionSeconds('buy')+clicks*__slctx.Strategy.actionSeconds('upgrade')
-        +(4+sources)*(r.menuTripSeconds or __slctx.CONFIG.InitialMenuTripSeconds)
-    return math.max(__slctx.CONFIG.InitialFullLayoutSeconds,input),'current observed layout inputs; unmeasured financing allowance'
+        +(direct and __slctx.CONFIG.DirectPurchases and 0 or (4+sources)*(r.menuTripSeconds or __slctx.CONFIG.InitialMenuTripSeconds))
+    return math.max(__slctx.CONFIG.InitialFullLayoutSeconds,input),
+        (direct and 'current parallel layout rounds' or 'current observed layout inputs')..'; unmeasured financing allowance'
 end
 function __slctx.Strategy.resetContext(inv,capabilityOnly)
     local r=__slctx.Strategy.route();local q=r.buyQuote;local amount=__slctx.cash();local rate,rateSource,rateKind=__slctx.Strategy.rate()

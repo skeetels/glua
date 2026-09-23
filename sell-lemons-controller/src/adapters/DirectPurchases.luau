@@ -68,6 +68,16 @@ return function(ctx)
                     if why~='ACTION_PENDING' then ctx.pause('DIRECT_STATE_UNAVAILABLE',tostring(why))end
                     return
                 end
+                -- Reconcile sent direct actions before BOOT, Powers or Buy can
+                -- dispatch anything after a pause. Direct receipts never need GUI.
+                local blocked=ctx.Strategy.route().blocked or {}
+                for _,entry in pairs(blocked)do
+                    if entry.c.source=='direct' or entry.c.source=='directBuy' then
+                        ctx.Strategy.reconcileBlocked()
+                        if ctx.Strategy.stopForBlocked()then return end
+                        break
+                    end
+                end
             end
             return oldStep()
         end
@@ -203,13 +213,35 @@ return function(ctx)
         end
         return execute(item,validate,function()remote:InvokeServer(item.name,1)end,function()return A.powerProof(item)end)
     end
+    function A.buyValid(c)
+        local q=A.buyQuote()
+        return q and same(c.snapshot,q.snapshot) and q.key==c.key and q.instance==c.instance and q.remote==c.remote
+            and q.priceLog==c.priceLog and q.available
+    end
     function A.buy(c)
-        local function validate()
-            local q=A.buyQuote()
-            return q and same(c.snapshot,q.snapshot) and q.key==c.key and q.instance==c.instance and q.remote==c.remote
-                and q.priceLog==c.priceLog and q.available
+        if ctx.CONFIG.DirectUpgrades and D.allocate and A.buyValid(c)then
+            local s=D.state()
+            if s and same(c.snapshot,s) then
+                local reserve=c.priceLog;local h=ctx.HaloRun.state()
+                -- A funded final catalogue keeps its full reservation. In normal
+                -- construction reserve this Buy, then share the rest among stands.
+                if h.mode=='FINISH' and h.remaining and h.remaining.cost then
+                    reserve=math.max(reserve,ctx.BN.log(h.remaining.cost))
+                end
+                local budget=table.clone(s);budget.cash=M.sub(s.cash,reserve)
+                local rows=D.allocate(budget,D.cards(budget))
+                if #rows>0 then
+                    local _,records=D.dispatch(rows,s,c)
+                    if type(records)=='table' then
+                        for _,rec in ipairs(records)do
+                            if rec.c==c then return rec.committed==true,rec end
+                        end
+                    end
+                    return false
+                end
+            end
         end
-        local done,why,rec=execute(c,validate,function()c.remote:InvokeServer(true,false)end,function()return A.buyProof(c)end)
+        local done,why,rec=execute(c,function()return A.buyValid(c)end,function()c.remote:InvokeServer(true,false)end,function()return A.buyProof(c)end)
         if done then ctx.Safety.commit(rec);return true,rec end
         if rec and rec.sent then
             local r=ctx.Strategy.route();r.blocked[ctx.Safety.key(c)]={c=c,receipt=rec,reason=why}
@@ -242,7 +274,10 @@ return function(ctx)
         end
         return oldPurchase(c)
     end
-    function ctx.Safety.proof(rec)if rec.c.source=='directBuy' then return A.buyProof(rec.c)end;return oldProof(rec)end
+    function ctx.Safety.proof(rec)
+        if rec.c.source=='directBuy' then return rec.sent and rec.returned and rec.ok and A.buyProof(rec.c)end
+        return oldProof(rec)
+    end
     function ctx.focusCandidate(c)
         if c.source=='directBuy' then local q=A.buyQuote();if q and q.key==c.key then return q end;return nil,'QUOTE_CHANGED' end
         return oldFocus(c)
