@@ -74,3 +74,17 @@ do
     end
 end
 print('PASS new goal authorization bypasses only old full-recovery/reserve requirements; all epoch/receipt/readiness/lease guards remain')
+do
+    local state={time=100,invTime=100,ready=true,bank=B.new(1e6),reward=B.new(1),perInvestor=.08,
+        used=B.new(0),spent=B.new(0),cash=B.new(100),recovery=true,epoch=2,policy='repeat',buyId='cheap-1'}
+    local intent={at=99,expiresAt=105,state=table.clone(state),spend=B.new(0),detail={authorization='repeat-ready-rebirth'}}
+    state.buyId='cheap-2';state.goal={name='newly available power'}
+    assert(c.Planner.validateResetIntent(intent,state,c.CONFIG),'one real investor is sufficient; local Buy/Powers cannot require preparation')
+    for _,change in ipairs({{evoReady=true},{unresolved=true},{epoch=3},{time=106},{reward=B.new(0)},{policy='disabled'},{endReached=true}})do
+        local bad=table.clone(state);for k,v in pairs(change)do bad[k]=v end
+        assert(not c.Planner.validateResetIntent(intent,bad,c.CONFIG),'repeat mode must keep fresh-state and receipt guards')
+    end
+    c.CONFIG.RepeatRebirth=false
+    assert(not c.Planner.validateResetIntent(intent,state,c.CONFIG),'switching repeat mode off invalidates its authorization')
+end
+print('PASS repeated rebirth accepts small positive rewards and changing local quotes, but retains all reset/pause/receipt guards')

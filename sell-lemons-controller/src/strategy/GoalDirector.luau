@@ -3,7 +3,18 @@
 return function(ctx)
     local G={};ctx.GoalDirector=G
     local phases={BOOT=true,BUY=true,UPGRADE=true,REBUILD=true,POWERS=true,BOOST=true,
-        CAPABILITY=true,CHECKPOINT=true,OBJECTIVE=true,WAIT_GROWTH=true,WAIT_CASH=true}
+        CAPABILITY=true,CHECKPOINT=true,OBJECTIVE=true,WAIT_GROWTH=true,WAIT_CASH=true,REBIRTH_LOOP=true}
+    function G.repeating()
+        return ctx.CONFIG.RepeatRebirth and ctx.CONFIG.GoalDirectedProgression and ctx.CONFIG.DirectPrestige
+            and ctx.CONFIG.DirectPurchases and ctx.CONFIG.AutoRebirth and ctx.S.resetEnabled
+    end
+    function G.repeatIntent()
+        local intent=ctx.Strategy.route().resetIntent
+        return intent and intent.detail and intent.detail.authorization=='repeat-ready-rebirth'
+    end
+    function G.settleSeconds()
+        return G.repeating() and ctx.CONFIG.RepeatRebirthSettleSeconds or ctx.CONFIG.AfterResetWait
+    end
     function G.finish()
         if not ctx.CONFIG.GoalDirectedProgression or not ctx.CONFIG.DirectPurchases then return nil end
         local rem=ctx.DirectPurchases.remaining()
@@ -16,7 +27,8 @@ return function(ctx)
             r.goalDecisionLoggedAt=ctx.now()
             ctx.log('GOAL_ROUTE',choice..'; E='..tostring(r.evo and r.evo.index)
                 ..'; continue='..tostring(detail and detail.direct)..'; rebirth='..tostring(detail and detail.reset)
-                ..'; prefix='..tostring(detail and detail.points)..'/'..tostring(detail and detail.totalPoints))
+                ..'; prefix='..tostring(detail and detail.points)..'/'..tostring(detail and detail.totalPoints)
+                ..'; reward='..ctx.BN.format(detail and detail.reward))
         end
     end
     function G.forecast(inv)
@@ -61,8 +73,42 @@ return function(ctx)
     end
     function G.ownsRebirth()
         local h=ctx.HaloRun.state()
-        return ctx.CONFIG.GoalDirectedProgression and ctx.CONFIG.AutoEvolution and h.goalForecast~=nil
+        return G.repeating() or ctx.CONFIG.GoalDirectedProgression and ctx.CONFIG.AutoEvolution and h.goalForecast~=nil
             and ctx.now()-(h.goalForecastAt or -math.huge)<=ctx.CONFIG.IncomeFreshSeconds
+    end
+    function G.repeatReady(inv)
+        local B=ctx.BN
+        if not G.repeating() then return false,'REPEAT_REBIRTH_DISABLED' end
+        if not inv or not inv.time or ctx.now()-inv.time>ctx.CONFIG.IncomeFreshSeconds or inv.time>ctx.now() then
+            return false,'REBIRTH_DATA_UNAVAILABLE'
+        end
+        if not inv.ready or not inv.reward or inv.reward.m<=0 or not inv.investors then return false,'WAIT_REBIRTH_REWARD' end
+        -- Readiness is the game's normal reward gate. No gain target, full pass,
+        -- recovery, construction quote, income model or 400-investor prerequisite.
+        if B.cmp(B.add(inv.investors,inv.reward),inv.investors)<=0 then return false,'WAIT_REBIRTH_REWARD' end
+        return true,'REPEAT_READY_REBIRTH'
+    end
+    function G.repeatStep()
+        local r=ctx.Strategy.route();local inv=ctx.readInvestors()
+        if inv then r.latestInvestors=inv end
+        local yes,why=G.repeatReady(inv)
+        if yes then
+            local detail={authorization='repeat-ready-rebirth',target='next evolution',reward=inv.reward,
+                cost=0,restoreQuality='user-selected repeat loop; no construction prerequisite'}
+            r.evolutionCheckTotal=ctx.Planner.totalMinimum(inv,r.spent)
+            G.note('REPEAT_READY_REBIRTH',detail)
+            ctx.HaloRun.performReset(inv,nil,detail,{rate=nil,plannedSpend=ctx.BN.new(0)})
+        elseif not inv then
+            G.note('REBIRTH_DATA_WAIT');ctx.status('REBIRTH_DATA_WAIT','Жду свежие данные rebirth; базу не строю.')
+        else
+            G.note('WAIT_REBIRTH_REWARD');ctx.status(why,'Жду доступную награду rebirth; базу не строю.')
+        end
+        -- Even while waiting or after a cancelled decision, do not fall through
+        -- to BOOT/Powers/Buy. A sent unresolved transaction remains paused upstream.
+        if ctx.live() and not (r.endPurchased or r.completionSeen) and r.phase~='EVOLVE_RESERVE' then
+            ctx.Strategy.phase('REBIRTH_LOOP','повторные rebirth без прокачки базы')
+        end
+        return true
     end
     function G.validate(inv)
         -- Recompute the exact goal and comparison immediately before dispatch.
@@ -72,6 +118,7 @@ return function(ctx)
         local r=ctx.Strategy.route();r.evo=evo;r.lastEvolutionRead=ctx.now()
         if evo.ready then return false,'EVOLUTION_TAKES_PRIORITY' end
         if G.finish() then return false,'FINISH_CASH_FUNDED' end
+        if G.repeatIntent() then return G.repeatReady(inv) end
         local detail,why=G.forecast(inv)
         if not detail or not detail.worth then return false,why or 'NEXT_EVOLUTION_NO_LONGER_FASTER' end
         return true
@@ -82,10 +129,15 @@ return function(ctx)
             or not ctx.S.resetEnabled or not ctx.live() or not phases[r.phase] or (r.phase=='BOOT' and not boot)
             or ctx.S.actionPending or ctx.S.resetSession or ctx.S.resetChildPending or ctx.S.buyHold
             or r.powerUnresolved or next(r.blocked or {}) then return false end
-        if not boot and not h.goalFinish and ctx.now()<(h.nextGoalRead or 0) then return false end
+        if not boot and not h.goalFinish and ctx.now()<(h.nextGoalRead or 0) then
+            return G.repeating() and h.mode~='FINISH' and not h.repeatFinishAttempt
+        end
         h.nextGoalRead=ctx.now()+ctx.CONFIG.GoalReviewSeconds
         local evo=ctx.readEvolution()
-        if not evo then return false end -- Missing data never forces an idle/reset loop.
+        if not evo then
+            if G.repeating() then ctx.status('REBIRTH_DATA_WAIT','Жду свежие данные этапа; базу не строю.');return true end
+            return false
+        end
         r.evo=evo;r.lastEvolutionRead=ctx.now()
         ctx.S.prestige=ctx.S.prestige or {};ctx.S.prestige.evo=evo
         local rem=G.finish();h.goalFinish=rem
@@ -99,6 +151,7 @@ return function(ctx)
             return boot==true -- BOOT must not continue into its old tablet/power work.
         end
         if h.mode=='FINISH' then return false end
+        h.repeatFinishAttempt=nil
         if ctx.CONFIG.AutoEvolution and evo.ready then
             ctx.HaloRun.plan(false)
             if not ctx.HaloRun.deferEvolution(false) then
@@ -106,8 +159,9 @@ return function(ctx)
                 G.note('EVOLVE_READY');ctx.HaloRun.selectEvolution()
                 ctx.Strategy.reserveEvolution();return true
             end
-            G.note('FINISH_ATTEMPT');return false
+            h.repeatFinishAttempt=true;G.note('FINISH_ATTEMPT');return false
         end
+        if G.repeating() then return G.repeatStep() end
         if not ctx.CONFIG.AutoEvolution or not ctx.CONFIG.AutoRebirth or ctx.now()<(h.nextGoalForecast or 0) then return false end
         h.nextGoalForecast=ctx.now()+ctx.CONFIG.GoalForecastSeconds
         local inv=ctx.HaloRun.checkedInvestors()

@@ -1,5 +1,5 @@
 local function fixture()
-    local c={};require('../src/config')(c);require('../src/core/Numeric')(c);c.BN=c.Core.BN
+    local c={};require('../src/config')(c);c.CONFIG.RepeatRebirth=false;require('../src/core/Numeric')(c);c.BN=c.Core.BN
     require('../src/core/HaloPlanner')(c);require('../src/core/EconomyPlanner')(c)
     local B=c.BN;local state={time=100,reads=0,resets=0,oldWork=0,ready=true,bonus=10}
     local r={phase='BOOT',evo={index=0},previousHalo=77,previousEvolution=0,blocked={},cards={},recovery={unfinished=true}}

@@ -221,11 +221,12 @@ return function(ctx)
         if r.halo30 then r.halo30.resetInFlight=nil end
         local duration=math.max(.01,ctx.now()-rec.started)
         r.lastResetExecution={stage='confirmed',reason=kind,at=ctx.now()};r.resetDuration=duration
-        ctx.Strategy.recordTiming(kind,duration);ctx.Strategy.afterReset(kind,before)
+        ctx.Strategy.recordTiming(kind,duration);before.settleSeconds=ctx.GoalDirector and ctx.GoalDirector.settleSeconds() or ctx.CONFIG.AfterResetWait
+        ctx.Strategy.afterReset(kind,before)
         ctx.progress(kind);ctx.log('DIRECT_'..kind:upper()..'_RECEIPT','exact reset counters verified; no GUI')
         if ctx.ResetInspection then pcall(ctx.ResetInspection.direct,kind,'receipt',rec)end
         S.runStart=ctx.now();S.lastRefresh=-math.huge;S.lastPowers=-math.huge
-        ctx.sleep(ctx.CONFIG.AfterResetWait);return true
+        ctx.sleep(before.settleSeconds);return true
     end
     function P.rebirthProof(rec)
         local after=P.snapshot();local b=after and after.snapshot;local a=rec.before.snapshot
@@ -273,11 +274,12 @@ return function(ctx)
         local duration=math.max(.01,ctx.now()-rec.started)
         r.lastResetExecution={stage='confirmed',reason='rebirth',at=ctx.now()};r.resetDuration=duration
         ctx.Strategy.recordTiming('rebirth',duration);r.nextRecovery=recovery
-        if recovery then recovery.started=ctx.now()+ctx.CONFIG.AfterResetWait end
+        before.settleSeconds=ctx.GoalDirector and ctx.GoalDirector.settleSeconds() or ctx.CONFIG.AfterResetWait
+        if recovery then recovery.started=ctx.now()+before.settleSeconds end
         before.afterInvestors=P.wallet();ctx.Strategy.afterReset('rebirth',before)
         ctx.progress('rebirth');ctx.log('DIRECT_REBIRTH_RECEIPT','both rebirth counters increased; no GUI')
         S.runStart=ctx.now();S.lastRefresh=-math.huge;S.lastPowers=-math.huge
-        ctx.sleep(ctx.CONFIG.AfterResetWait);return true
+        ctx.sleep(before.settleSeconds);return true
     end
     local oldReset=ctx.doReset
     function ctx.doReset(kind)

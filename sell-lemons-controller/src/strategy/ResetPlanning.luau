@@ -323,7 +323,7 @@ end
 -- by ageing the cash-flow samples. This is not permission to ignore changed state.
 function __slctx.Strategy.resetPolicyKey()
     return table.concat({tostring(__slctx.S.resetEnabled),tostring(__slctx.CONFIG.AutoRebirth),tostring(__slctx.CONFIG.AutoEvolution),
-        tostring(__slctx.CONFIG.AutoInvestorPowers),tostring(__slctx.CONFIG.CapabilityRebirth),
+        tostring(__slctx.CONFIG.AutoInvestorPowers),tostring(__slctx.CONFIG.CapabilityRebirth),tostring(__slctx.CONFIG.RepeatRebirth),
         tostring(__slctx.CONFIG.TabletReserve),tostring(__slctx.CONFIG.EvolutionMinimumBank),tostring(__slctx.CONFIG.GoalDirectedProgression),tostring(__slctx.CONFIG.PowerMaxEpochFraction),tostring(__slctx.CONFIG.ConstructionPolicy)},'|')
 end
 function __slctx.Strategy.resetReceiptKey()
@@ -379,8 +379,9 @@ function __slctx.Strategy.validateResetIntent(inv)
     if not intent then return false,'RESET_INTENT_MISSING' end
     local state=__slctx.Strategy.resetIntentState(inv)
     local ok,why=__slctx.Planner.validateResetIntent(intent,state,__slctx.CONFIG)
+    local repeatReset=intent.detail and intent.detail.authorization=='repeat-ready-rebirth'
     -- Newly discovered goal readiness/near-end progress overrides the old plan.
-    if ok and __slctx.CONFIG.AutoEvolution then
+    if ok and __slctx.CONFIG.AutoEvolution and not repeatReset then
         local total=__slctx.Planner.totalMinimum(inv,r.spent)
         if r.target and total and __slctx.BN.cmp(total,__slctx.BN.mul(r.target,.999))>=0
             and (not r.evolutionCheckTotal or __slctx.BN.cmp(r.evolutionCheckTotal,__slctx.BN.mul(r.target,.999))<0) then
@@ -393,7 +394,7 @@ function __slctx.Strategy.validateResetIntent(inv)
             local eta=__slctx.Core.eta(state.cash,q.cost,intent.rate)
             if __slctx.Planner.isTerminalName(q.name) and eta and eta<=((intent.detail and intent.detail.cost) or __slctx.CONFIG.InitialFullLayoutSeconds) then
                 ok=false;why='TERMINAL_TARGET_CLOSER'
-            elseif (q.multiplier or 0)>=__slctx.CONFIG.MajorMultiplier and eta and eta<=__slctx.Strategy.savingsRemaining(q,false) then
+            elseif not repeatReset and (q.multiplier or 0)>=__slctx.CONFIG.MajorMultiplier and eta and eta<=__slctx.Strategy.savingsRemaining(q,false) then
                 ok=false;why='PROTECTED_MAJOR_TARGET'
             end
         end
@@ -404,7 +405,7 @@ function __slctx.Strategy.validateResetIntent(inv)
         if not q or not q.cost or not state.cash then ok=false;why='BUILD_QUOTE_NOT_VERIFIED'
         elseif __slctx.BN.cmp(state.cash,q.cost)>=0 then ok=false;why='BUILD_TARGET_FUNDED_DURING_NAVIGATION' end
     end
-    if ok and intent.detail and intent.detail.authorization=='next-evolution-prefix' then
+    if ok and intent.detail and (intent.detail.authorization=='next-evolution-prefix' or repeatReset) then
         if __slctx.GoalDirector then ok,why=__slctx.GoalDirector.validate(inv)
         else ok=false;why='GOAL_DIRECTOR_UNAVAILABLE' end
     end

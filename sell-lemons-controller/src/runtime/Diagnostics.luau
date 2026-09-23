@@ -1,7 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 function __slctx.API.report()
-    local report={'SELL LEMONS CONTROLLER 4.0.17 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
+    local report={'SELL LEMONS CONTROLLER 4.0.18 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
         'Status='..__slctx.S.code..' | '..__slctx.S.status,'Cash='..__slctx.t(__slctx.paths.balance),
         'Last error='..__slctx.S.lastError,'firesignal tested='..tostring(__slctx.Driver.fire~=nil),
         'getconnections tested='..tostring(__slctx.Driver.connections~=nil),
@@ -21,10 +21,12 @@ function __slctx.API.report()
     report[#report+1]='PHASE='..r.phase..' | '..tostring(r.reason)
     report[#report+1]='Target E'..tostring(r.evo and r.evo.index+1)..'='..__slctx.BN.format(r.target)..'; total minimum='..__slctx.BN.format(r.totalMinimum)..'; historical spending unknown='..tostring(r.spentUnknown)
     local goal=r.goalDecision;local d=goal and goal.detail
+    report[#report+1]='Repeat ready rebirth='..tostring(__slctx.CONFIG.RepeatRebirth)..'; no base/power preparation between receipts; phase='..tostring(r.phase)
     report[#report+1]='Goal director='..tostring(__slctx.CONFIG.GoalDirectedProgression)..'; choice='..tostring(goal and goal.choice)..'; continue ETA='..tostring(d and d.direct)..'; reset ETA='..tostring(d and d.reset)..'; observed prefix='..tostring(d and d.points)..'/'..tostring(d and d.totalPoints)..'; evolution minimum='..tostring(__slctx.CONFIG.EvolutionMinimumBank)
     local hg=__slctx.HaloRun.state()
     report[#report+1]='Goal forecast unavailable='..tostring(hg.goalForecastReason)..'; clean prefix='..tostring(r.goalTrace and r.goalTrace.complete and not r.goalTrace.invalid)..'; direct points='..tostring(r.goalTrace and #r.goalTrace.points or 0)
-    report[#report+1]='Rebirth policy=exact next-evolution prefix comparison; fallback observed funding block + bounded output after rebuild at sustained wall; funded construction protected; rebuild estimate='..tostring(r.rebuildEstimate)
+    report[#report+1]=__slctx.CONFIG.RepeatRebirth and 'Rebirth policy=repeat each fresh ready reward; no base, full-pass or replay prerequisites; stop for ready evolution or protected Halo finish'
+        or ('Rebirth policy=exact next-evolution prefix comparison; fallback observed funding block; rebuild estimate='..tostring(r.rebuildEstimate))
     report[#report+1]='Gain='..tostring(r.gain)..'; wait deadline='..tostring(r.savingsBudget and r.savingsBudget.deadline or r.wall and r.wall.deadline)..'; last decision='..r.lastDecision
     report[#report+1]='Committed full sweep='..tostring(r.pass and r.pass.id)..'; next stand='..tostring(r.pass and r.pass.index)
         ..'; stands='..tostring(r.pass and #r.pass.order)..'; finished='..tostring(r.pass and r.pass.finished)
@@ -139,7 +141,7 @@ function __slctx.API.report()
     local base=__slctx.previousReport30();local h=__slctx.HaloRun.state();local f=h.forecast;local m=h.book.model
     local text,fraction,eta,progress=__slctx.HaloRun.progress()
     local economic=progress.economy or {}
-    local out={ '--- HALO ROUTE ECONOMY 4.0.17 ---',
+    local out={ '--- HALO ROUTE ECONOMY 4.0.18 ---',
         'HALO_MODE='..h.mode..'; halo='..tostring(h.book.halo)..'; evolution='..tostring(h.book.evolution),
         'HALO_READINESS fraction='..tostring(fraction)..'; type=route-income-capacity; bar is explicitly logarithmic, NOT percent of elapsed time',
         'REQUIRED_INCOME='..__slctx.BN.format(economic.requiredRate)..'; CURRENT_INCOME='..__slctx.BN.format(economic.currentRate)

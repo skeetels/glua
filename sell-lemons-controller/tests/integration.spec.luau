@@ -1,6 +1,7 @@
 local mock=require('./mock-engine')()
 local ctx={}
 do local initialize=require('../src/config');setfenv(initialize,mock.env);initialize(ctx) end
+ctx.CONFIG.RepeatRebirth=false -- Legacy modelled mode; repeat-mode dispatch is covered separately below.
 do local initialize=require('../src/core/Numeric');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/data/GameBalance');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/core/UpgradeMath');setfenv(initialize,mock.env);initialize(ctx) end
@@ -107,6 +108,7 @@ assert(not ctx.S.actionPending and not ctx.S.resetSession,'no replacement reset 
 print('PASS confirmed E3 to E4 cleanup and actual BOOT resume to POWERS with string-zero spent balances')
 -- Exercise the actual direct transaction -> afterReset wrappers -> BOOT chain.
 ctx.DirectPrestige.verifyReset=function()return true end
+local actualDeferEvolution=ctx.HaloRun.deferEvolution
 ctx.HaloRun.deferEvolution=function()return false end -- policy itself has report-based regression fixtures.
 ctx.sleep=function()return ctx.S.running end
 mock.env.task.spawn=function(fn)fn();return fn end
@@ -164,6 +166,72 @@ do
     ctx.GoalPlanner.compare=originalCompare;ctx.DirectUpgrades.cards=originalCards
 end
 print('PASS H82/E4 reported BOOT and F6 resume execute real goal comparison without nil arithmetic or an unauthorized reset')
+-- User's requested mode is a repeated ready-rebirth loop, including an attached
+-- partial cycle. Exercise real director -> lease -> remote -> receipt -> cleanup,
+-- with no intervening base, power, tablet or stand preparation.
+do
+    ctx.CONFIG.RepeatRebirth=true;ctx.HaloRun.deferEvolution=actualDeferEvolution
+    local calls={rebirth=0,evolve=0,buy=0};local sleeps={}
+    local oldBuy=ctx.HaloRun.buy
+    ctx.HaloRun.buy=function()calls.buy=calls.buy+1 end
+    ctx.ensureTablet=function()error('repeat mode must not prepare tablet/base')end
+    ctx.HaloRun.powers=function()error('repeat mode must not prepare Powers')end
+    ctx.Strategy.growUpgrades=function()error('repeat mode must not wait for a stand pass')end
+    ctx.GoalDirector.forecast=function()error('repeat mode must not require a replay forecast')end
+    ctx.DirectUpgrades.cards=function()return {{source='direct',path='direct/LemonStand',key='LemonStand',
+        name='Lemon Stand',income=ctx.BN.new(1.862,135),periodSeconds=1}}end
+    ctx.sleep=function(seconds)sleeps[#sleeps+1]=seconds;return ctx.S.running end
+    for _,kind in ipairs({'Rebirth','Evolve'})do
+        local remote=node(kind);remote.IsA=function(_,k)return k=='RemoteFunction'end
+        own.children.Remotes.children[kind]=remote
+        function remote:InvokeServer(...)
+            assert(select('#',...)==1 and select(1,...)==nil)
+            if kind=='Rebirth'then
+                local d=ctx.DirectPrestige.snapshot()
+                values.attrs.Investors=ctx.PrestigeMath.add(d.Investors,d.reward)
+                values.attrs.Rebirths=values.attrs.Rebirths+1
+                values.attrs.TotalRebirths=values.attrs.TotalRebirths+1
+                calls.rebirth=calls.rebirth+1
+            else
+                values.attrs.Evolution=values.attrs.Evolution+1
+                values.attrs.TotalEvolves=values.attrs.TotalEvolves+1;values.attrs.Rebirths=0
+                calls.evolve=calls.evolve+1
+            end
+            values.attrs.Cash=0;values.attrs.CashSpent='0'
+        end
+    end
+    values.attrs.Cash=136.5247850360478;values.attrs.CashSpent='0'
+    values.attrs.Investors=3.1329471383665064;values.attrs.InvestorsSpent='0'
+    values.attrs.Evolution=4;values.attrs.Ascension=82;values.attrs.Rebirths=0
+    values.attrs.TotalRebirths=1532;values.attrs.TotalEvolves=527;root.children.Purchases.attrs={}
+    ctx.API.pause();ctx.API.start()
+    ctx.Strategy.route().directEpoch=ctx.DirectUpgrades.state()
+    assert(not ctx.Strategy.route().cleanRun,'first attachment has no complete trace')
+    local before=ctx.S.counts.rebirth
+    for i=1,3 do
+        -- Permanent production has supplied a fresh normal reward after each reset.
+        values.attrs.Cash=136.5247850360478+i
+        ctx.step()
+        assert(calls.rebirth==i and ctx.S.counts.rebirth==before+i,ctx.S.code..' '..ctx.S.status)
+        assert(ctx.S.running and calls.buy==0 and ctx.Strategy.route().phase=='REBIRTH_LOOP')
+        assert(not ctx.S.actionPending and not ctx.Strategy.route().directResetUnresolved)
+        assert(sleeps[#sleeps]==ctx.CONFIG.RepeatRebirthSettleSeconds)
+    end
+    values.attrs.Cash=0
+    ctx.step();ctx.step()
+    assert(calls.rebirth==3 and calls.buy==0 and ctx.S.running,'no reward / throttle must wait without falling into Buy')
+    assert(ctx.Strategy.route().phase=='REBIRTH_LOOP')
+    -- Fresh ready evolution takes priority over the fourth rebirth.
+    ctx.HaloRun.state().nextGoalRead=nil;values.attrs.Cash=200
+    ctx.step()
+    assert(calls.evolve==1 and calls.rebirth==3 and calls.buy==0,ctx.S.code..' '..ctx.S.status)
+    -- A cash-funded full remainder switches to construction, without a reset.
+    ctx.HaloRun.state().nextGoalRead=nil;values.attrs.Cash=400
+    ctx.step();ctx.step()
+    assert(calls.buy>0 and calls.evolve==1 and calls.rebirth==3,'funded Halo must end the rebirth loop')
+    ctx.HaloRun.buy=oldBuy
+end
+print('PASS repeat mode: three real rebirth receipts from partial startup without Buy/Powers/stand passes, reward wait, faster settle, evolution priority and funded-Halo handoff')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)

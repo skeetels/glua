@@ -177,6 +177,7 @@ function __slctx.Strategy.readHalo()
     return v,e
 end
 function __slctx.Strategy.afterReset(kind,before)
+    local settle=before and before.settleSeconds or __slctx.CONFIG.AfterResetWait
     __slctx.Strategy.resetBaseProgress(kind)
     __slctx.Strategy.cancelResetIntent('RESET_COMPLETED')
     __slctx.Strategy.route().economicRevision=(__slctx.Strategy.route().economicRevision or 0)+1
@@ -245,13 +246,13 @@ function __slctx.Strategy.afterReset(kind,before)
     __slctx.Strategy.resetReviewClock();r.reviewFrom=nil;r.reviewReason=nil
     r.powerPending=true;r.powerSkipped={};r.powerQuotes={};r.powerGoal=nil
     r.priceModels={};r.maxObserved=nil;r.runWork={};r.runUpgradeSeconds=0;r.runUpgradeActions=0
-    r.capabilityOnly=nil;r.capabilityBackoff=nil;r.buyBurstCount=0;r.powerReturn=nil;r.runObservedAt=__slctx.now()+__slctx.CONFIG.AfterResetWait
+    r.capabilityOnly=nil;r.capabilityBackoff=nil;r.buyBurstCount=0;r.powerReturn=nil;r.runObservedAt=__slctx.now()+settle
     r.growthSamples={};r.reviewReturn=nil;r.boostQuote=nil;r.macroPlan=nil;r.lastStrategicReview=__slctx.now()
     r.schema28=true;r.cleanRun=true;r.frontierRecovery=r.recovery
     r.goalTrace=nil;r.goalGrowth=nil;r.goalDecision=nil
     r.frontierTrace=nil;r.runSpent=__slctx.BN.new(0);r.runServiceSeconds=0;r.runMenuSeconds=0;r.runBuyCount=0
     r.passiveRows={};r.uiObservation=nil;r.rewardSamples={};r.rewardCurve=nil
-    r.buildStarted=__slctx.now()+__slctx.CONFIG.AfterResetWait;r.lastBuildAt=nil;r.lastBuildBuys=0;r.buildMilestone=nil
+    r.buildStarted=__slctx.now()+settle;r.lastBuildAt=nil;r.lastBuildBuys=0;r.buildMilestone=nil
     r.fastBuildPending=true;r.objectiveReturn=nil;r.objectiveText=nil;r.objectiveUrgent=nil
     r.reviewSnapshot=nil;r.reviewUrgent=nil
     if retainedBatch then
@@ -300,7 +301,7 @@ function __slctx.Strategy.rebirthBarrier(inv)
     if __slctx.CONFIG.AutoEvolution and r.evo and r.evo.ready and not (r.resetIntent and r.resetIntent.preferRebirthToEvolution33) then return false,'EVOLUTION_TAKES_PRIORITY' end
     local total=__slctx.Planner.totalMinimum(inv,r.spent)
     local threshold=r.target and __slctx.BN.mul(r.target,0.999)
-    if __slctx.CONFIG.AutoEvolution and threshold and total and __slctx.BN.cmp(total,threshold)>=0
+    if __slctx.CONFIG.AutoEvolution and not (__slctx.GoalDirector and __slctx.GoalDirector.repeatIntent()) and threshold and total and __slctx.BN.cmp(total,threshold)>=0
         and (not r.evolutionCheckTotal or __slctx.BN.cmp(r.evolutionCheckTotal,threshold)<0) then
         return false,'NEW_EVOLUTION_THRESHOLD'
     end

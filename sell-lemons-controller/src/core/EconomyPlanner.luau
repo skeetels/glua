@@ -890,7 +890,9 @@ function Planner.validateResetIntent(intent,state,config)
     if state.unresolved then return false,'UNRESOLVED_PURCHASE' end
     if state.evoReady and not (intent.preferRebirthToEvolution33 and old.evoReady and old.evolution==state.evolution) then return false,'EVOLUTION_TAKES_PRIORITY' end
     if state.endReached then return false,'HALO_TAKES_PRIORITY' end
-    local goalReset=intent.detail and intent.detail.authorization=='next-evolution-prefix'
+    local repeatReset=intent.detail and intent.detail.authorization=='repeat-ready-rebirth'
+    if repeatReset and not config.RepeatRebirth then return false,'REPEAT_REBIRTH_DISABLED' end
+    local goalReset=repeatReset or intent.detail and intent.detail.authorization=='next-evolution-prefix'
     if state.recovery and not goalReset then return false,'REBUILD_BEFORE_NEXT_REBIRTH' end
     if not state.ready then return false,'REBIRTH_BUTTON_LOCKED' end
     if not state.bank or not state.reward or state.reward.m<=0 then return false,'INVESTORS_UNKNOWN' end
@@ -898,7 +900,7 @@ function Planner.validateResetIntent(intent,state,config)
         return false,'RESET_INVESTORS_STALE'
     end
     for _,key in ipairs({'epoch','evolution','halo','revision','receipts','policy','flowSegment','pass','passIndex','capabilityOnly','batch','buyId'}) do
-        if state[key]~=old[key] then return false,'RESET_STATE_CHANGED_'..key:upper() end
+        if not (repeatReset and key=='buyId') and state[key]~=old[key] then return false,'RESET_STATE_CHANGED_'..key:upper() end
     end
     local function same(a,b)return a==nil and b==nil or a~=nil and b~=nil and B.cmp(a,b)==0 end
     for _,key in ipairs({'bank','gross','used','spent'}) do
@@ -909,8 +911,8 @@ function Planner.validateResetIntent(intent,state,config)
     if B.cmp(state.reward,B.mul(old.reward,.999))<0 then return false,'RESET_REWARD_DECREASED' end
     if old.cash and (not state.cash or B.cmp(state.cash,B.mul(old.cash,.999))<0) then return false,'RESET_CASH_DECREASED' end
     local a,b=old.goal,state.goal
-    if (a~=nil)~=(b~=nil) then return false,'RESET_POWER_QUOTE_CHANGED' end
-    if a then
+    if not repeatReset and (a~=nil)~=(b~=nil) then return false,'RESET_POWER_QUOTE_CHANGED' end
+    if a and not repeatReset then
         if a.path~=b.path or a.name~=b.name or a.bonus~=b.bonus or not same(a.price,b.price)
             or a.currentBatch~=b.currentBatch or a.nextBatch~=b.nextBatch then return false,'RESET_POWER_QUOTE_CHANGED' end
         if intent.spend and intent.spend.m>0 then
@@ -920,7 +922,10 @@ function Planner.validateResetIntent(intent,state,config)
             if not allowed then return false,'RESET_POWER_BUDGET_CHANGED' end
         end
     end
-    if old.bank.m==0 and not goalReset then
+    if repeatReset then
+        if intent.spend and intent.spend.m>0 then return false,'REPEAT_REBIRTH_CANNOT_SPEND' end
+        if B.cmp(B.add(state.bank,state.reward),state.bank)<=0 then return false,'NO_REBIRTH_REWARD' end
+    elseif old.bank.m==0 and not goalReset then
         if B.cmp(state.reward,B.new(config.TabletReserve))<0 then return false,'FIRST_REBIRTH_RESERVE' end
     else
         local gain=Planner.netInvestorGain({investors=state.bank,reward=state.reward,perInvestor=state.perInvestor},intent.spend)

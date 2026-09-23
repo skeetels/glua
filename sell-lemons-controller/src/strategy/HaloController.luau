@@ -255,7 +255,7 @@ function __slctx.Strategy.afterReset(kind,before)
     r.halo30={version=__slctx.CONFIG.RuntimeControllerVersion,mode='PREPARE',book=newBook,lastReview=__slctx.now(),lastBuy=__slctx.now(),lastUpgrade=__slctx.now(),
         lastPlan=-math.huge,lastModelRevision=-1,buysAtReview=0,upgradesAtReview=__slctx.S.counts.upgrade,
         nextReview=__slctx.now()+__slctx.CONFIG.PreparationReviewMinimumSeconds,afterReset=true,levelCurves=retainedLevelCurves}
-    -- Known large starting balances are valid data. Only comparisons use lower-bound 400.
+    -- Starting balances are observed; they do not impose a base-rebuild prerequisite.
 end
 
 -- ROUTE_RUNTIME_33_BEGIN
@@ -712,7 +712,8 @@ end
 function __slctx.HaloRun.performReset(inv,goal,detail,context)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if h.mode=='FINISH' or (r.evo and r.evo.ready and not (detail and detail.comparedEvolution and detail.finishAfterReset)) then return false end
-    local reason=detail and detail.authorization=='next-evolution-prefix' and 'REBIRTH_TO_EVOLUTION'
+    local reason=detail and detail.authorization=='repeat-ready-rebirth' and 'REPEAT_READY_REBIRTH'
+        or detail and detail.authorization=='next-evolution-prefix' and 'REBIRTH_TO_EVOLUTION'
         or (goal and context.plannedSpend.m>0 and 'RESET_FOR_UPGRADE_STACK' or 'RESET_FOR_NET_PRODUCTION')
     r.lastDecision=reason
     r.capabilityOnly=true;r.resetPowerPlan=reason=='RESET_FOR_UPGRADE_STACK' and goal or nil
@@ -1145,7 +1146,8 @@ function __slctx.HaloRun.progress()
     local heading='Halo '..tostring(halo or '?')..' → '..tostring(halo and halo+1 or '?')..' · E'..tostring(r.evo and r.evo.index or '?')..' · '..h.mode
     local goal=r.goalDecision;local goalDetail=goal and goal.detail
     local names={EVOLVE_READY='перейти к следующей эволюции',REBIRTH_TO_EVOLUTION='rebirth для быстрой эволюции',
-        GROW_TO_EVOLUTION='набрать следующую эволюцию',FINISH_CASH_FUNDED='завершить Halo',FINISH_ATTEMPT='проверить короткий финал'}
+        GROW_TO_EVOLUTION='набрать следующую эволюцию',FINISH_CASH_FUNDED='завершить Halo',FINISH_ATTEMPT='проверить короткий финал',
+        REPEAT_READY_REBIRTH='повторять rebirth без стройки',WAIT_REBIRTH_REWARD='ждать награду rebirth без стройки',REBIRTH_DATA_WAIT='дождаться данных rebirth'}
     if goal and names[goal.choice] then heading=heading..'\nЦель: '..names[goal.choice]end
     if h.resetInFlight or (__slctx.S.resetSession and __slctx.S.resetSession.isReset) then
         return heading..'\nСброс выполняется — предыдущий прогноз приостановлен.\n'..tostring(__slctx.S.status),0,
@@ -1155,6 +1157,11 @@ function __slctx.HaloRun.progress()
     if h.goalFinish then
         return heading..'\nДеньги покрывают '..tostring(h.goalFinish.count)..' оставшихся покупок.',1,
             'Стоимость проверена по состоянию базы; резерв сохраняется до финала.',audit
+    end
+    if __slctx.GoalDirector and __slctx.GoalDirector.repeating() and h.mode~='FINISH' and not h.repeatFinishAttempt then
+        return heading..'\nПовторные rebirth без прокачки базы.',0,
+            'Готовая эволюция — сразу. Награда rebirth: '..__slctx.BN.format(r.latestInvestors and r.latestInvestors.reward)
+                ..'. Каждый сброс ждёт подтверждения.',audit
     end
     if not v or not v.known then return heading..'\nСчитываю фактический доход и цены; покупки продолжаются.',0,'Прогноз ещё не подтверждён; это не доля времени.',audit end
     local current=__slctx.BN.format(v.currentRate);local required=__slctx.BN.format(v.requiredRate)
@@ -1225,6 +1232,8 @@ function __slctx.HaloRun.step()
     elseif r.phase=='EVOLVE_RESERVE'then
         if h.mode=='FINISH'then __slctx.Strategy.phase('BUY','FINISH: эволюция отложена')else __slctx.Strategy.reserveEvolution()end
     elseif r.phase=='HALO'then __slctx.Strategy.halo()
+    elseif r.phase=='REBIRTH_LOOP'then
+        if not (__slctx.GoalDirector and __slctx.GoalDirector.repeating())then __slctx.Strategy.phase('BOOT','режим повторных rebirth выключен')end
     elseif r.phase=='WAIT_GROWTH'then __slctx.HaloRun.wait()
     elseif r.phase=='WAIT_CASH'then __slctx.Strategy.waitCash()
     else __slctx.Strategy.phase('BUY','перехожу в новый контроллер PREPARE/FINISH')end
