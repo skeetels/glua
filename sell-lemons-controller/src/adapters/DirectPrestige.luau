@@ -5,6 +5,10 @@ return function(ctx)
     local function child(o,n)return o and o:FindFirstChild(n)end
     local function attr(o,n)return o and o:GetAttribute(n)end
     local function integer(v)return type(v)=='number' and v>=0 and v<math.huge and v%1==0 end
+    local function amount(value)
+        if value==nil then return {m=0,e=0} end
+        return M.bn(value)
+    end
     function P.verify()
         if P.verified~=nil then return P.verified,P.reason end
         P.verified=false
@@ -44,15 +48,19 @@ return function(ctx)
         local data={snapshot=s}
         for _,key in ipairs({'Cash','CashSpent','Investors','InvestorsSpent'})do
             local raw=attr(s.values,key)
-            if raw==nil then raw=-math.huge end -- GetHugeNumber(default Huge.zero)
-            if not M.bn(raw)then return nil,'PRESTIGE_BALANCE_INVALID '..key end
+            if raw==-math.huge then raw=nil end
+            -- GetHugeNumber defaults absent attributes to Huge.zero. Do not
+            -- create -infinity and send it through the ordinary BN converter.
+            if raw~=nil and not M.bn(raw)then
+                return nil,'PRESTIGE_BALANCE_INVALID '..key..' type='..type(raw)..' value='..tostring(raw)
+            end
             data[key]=raw
         end
         data.reward=ctx.PrestigeMath.reward(data.Cash,data.CashSpent,data.Investors,data.InvestorsSpent)
         return data
     end
     function P.wallet()
-        local data=P.snapshot();return data and M.bn(data.Investors)
+        local data=P.snapshot();return data and amount(data.Investors)
     end
     function P.investors()
         local data,why=P.snapshot();if not data then return nil,why end
@@ -63,10 +71,10 @@ return function(ctx)
         local extra=attr(data.snapshot.values,'ExtraInvestorBoost')
         if extra~=nil and type(extra)~='boolean' then return nil,'INVESTOR_BOOST_UNKNOWN' end
         local bonus=.01*2^(boosts+(extra and 1 or 0))
-        local r=ctx.Strategy.route();r.spent=M.bn(data.InvestorsSpent);r.spentUnknown=false
-        return {investors=M.bn(data.Investors),reward=M.bn(data.reward),perInvestor=bonus,
-            bonusText='+'..tostring(bonus*100)..'% cash',ready=data.reward>=0,time=ctx.now(),
-            source='replicated-prestige',snapshot=data.snapshot,investorsSpent=M.bn(data.InvestorsSpent)}
+        local r=ctx.Strategy.route();r.spent=amount(data.InvestorsSpent);r.spentUnknown=false
+        return {investors=amount(data.Investors),reward=amount(data.reward),perInvestor=bonus,
+            bonusText='+'..tostring(bonus*100)..'% cash',ready=data.reward~=nil and data.reward>=0,time=ctx.now(),
+            source='replicated-prestige',snapshot=data.snapshot,investorsSpent=amount(data.InvestorsSpent)}
     end
     function P.evolution()
         local data,why=P.snapshot();if not data then return nil,why end
@@ -74,7 +82,7 @@ return function(ctx)
         local progress,bonus,target,total=ctx.PrestigeMath.evolution(index,data.Investors,data.InvestorsSpent,data.reward)
         local names={'Lemon','Orange','Lime','Grapefruit','Tangerine','Pomelo','Abyssalime','Nullfruit','Voidlemon','Purity'}
         local fruit=names[index+1] or ('Purity+'..tostring(index-9))
-        return {index=index,pct=progress*100,ready=progress>=1,bonusVisible=progress>=1,bonus=M.bn(bonus),
+        return {index=index,pct=progress*100,ready=progress>=1,bonusVisible=progress>=1,bonus=amount(bonus),
             bonusIsInvestors=true,fresh=true,time=ctx.now(),fruit=fruit,source='replicated-prestige',
             snapshot=data.snapshot,targetLog=target,totalLog=total}
     end

@@ -97,3 +97,27 @@ assert(initial.snapshot.epoch.Rebirths==0 and initial.snapshot.epoch.TotalRebirt
 assert(c.readEvolution().index==0 and c.readHalo().amount==0,'legitimate absent zero counters must not stop initialization')
 assert(c.DirectUpgrades.state().epoch.Rebirths==nil,'normalization must not weaken raw external-reset evidence')
 print('PASS game-defined initial zero counters decode without changing the raw reset observations')
+local c,v,p,l,r,calls=fixture('ok')
+assert(c.readEvolution().index==3)
+-- Captured E3 -> E4 state, including absent reset expense attributes.
+v.attrs.Evolution=4;v.attrs.TotalEvolves=165;v.attrs.Rebirths=0;v.attrs.TotalRebirths=1109
+v.attrs.Cash=57.460962165077184;v.attrs.Investors=3.9556394051741783
+v.attrs.CashSpent=nil;v.attrs.InvestorsSpent=nil
+-- The live report rejects CashSpent in conversion while the standalone runtime
+-- accepts its synthetic -infinity. Zero balances must bypass that boundary.
+local originalBN=c.UpgradeMath.bn
+c.UpgradeMath.bn=function(raw)
+    if type(raw)~='number' or raw~=raw or math.abs(raw)==math.huge then return nil end
+    return originalBN(raw)
+end
+local data,why=c.DirectPrestige.snapshot();assert(data,why)
+local inv=assert(c.readInvestors());local evo=assert(c.readEvolution())
+assert(evo.index==4 and not evo.ready and evo.bonus.m==0)
+assert(inv.investorsSpent.m==0 and r.spent.m==0 and not r.spentUnknown)
+assert(math.abs(c.BN.log(inv.investors)-3.9556394051741783)<1e-10)
+assert(inv.reward.m>0 and #calls==0,'reading reset state must not send a replacement reset')
+v.attrs.CashSpent=0;assert(c.readInvestors(),'log10 zero is one currency unit, not a missing balance')
+v.attrs.CashSpent='invalid';assert(not c.readInvestors())
+v.attrs.CashSpent=math.huge;assert(not c.readInvestors())
+v.attrs.CashSpent=0/0;assert(not c.readInvestors())
+print('PASS captured post-evolution balances bypass non-finite conversion; fresh E4 and zero expenses are readable, malformed values still fail')

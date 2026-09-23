@@ -58,6 +58,45 @@ ctx.selfTest=function()error('direct startup must not require mouse APIs')end
 ctx.API.start();assert(ctx.S.running and not ctx.S.testing)
 ctx.API.pause();assert(not ctx.S.running)
 ctx.API.start();assert(ctx.S.running,'F6 resume must work without another mouse test')
+-- Real route boot + confirmed-reset cleanup, with the captured E4 balances.
+local function node(name,attrs,children)
+    local o={Name=name,attrs=attrs or {},children=children or {}}
+    function o:GetAttribute(k)return self.attrs[k]end
+    function o:GetAttributes()return table.clone(self.attrs)end
+    function o:GetChildren()return {}end
+    function o:FindFirstChild(k)return self.children[k]end
+    return o
+end
+local values=node('Values',{Cash=131.97138537523728,Investors=38.96138888955707,CashSpent=130,InvestorsSpent=33,
+    Evolution=3,Ascension=24,Rebirths=2,TotalRebirths=1109,TotalEvolves=164})
+local root=node('Values',{}, {Purchases=node('Purchases')})
+local own=node('Tycoon9');local powers=node('Powers',{}, {Permanent=node('Permanent',{BuyNext=3})})
+local premium=mock.env.Instance.new('Configuration');premium.Name='Purchases';premium.Parent=mock.player
+premium.GetAttribute=function(_,key)if key=='InvestorBoost' then return 2 end end
+mock.services.CollectionService={GetTagged=function()return {}end}
+ctx.DirectUpgrades.state=function()
+    local epoch={};for _,k in ipairs({'Evolution','Ascension','Rebirths','TotalRebirths','TotalEvolves'})do epoch[k]=values.attrs[k]end
+    return {own=own,root=root,values=values,powers=powers,levels=node('Upgrades'),cash=values.attrs.Cash,
+        cap=1,shift=24*math.log10(3.33),epoch=epoch,stands={},time=ctx.now()}
+end
+ctx.DirectPrestige.verify=function()return true end
+local ordinaryBN=ctx.UpgradeMath.bn
+ctx.UpgradeMath.bn=function(value)
+    if type(value)~='number' or value~=value or math.abs(value)==math.huge then return nil end
+    return ordinaryBN(value)
+end
+ctx.HaloRun.boot();assert(ctx.S.running and ctx.Strategy.route().evo.index==3)
+values.attrs.Evolution=4;values.attrs.TotalEvolves=165;values.attrs.Rebirths=0
+values.attrs.Cash=57.460962165077184;values.attrs.Investors=3.9556394051741783
+values.attrs.CashSpent=nil;values.attrs.InvestorsSpent=nil
+ctx.Strategy.afterReset('evolve',{index=3})
+assert(ctx.Strategy.route().phase=='BOOT' and ctx.Strategy.route().evo==nil)
+ctx.HaloRun.boot()
+assert(ctx.S.running and ctx.Strategy.route().evo.index==4,ctx.S.code..' '..ctx.S.status)
+assert(ctx.Strategy.route().phase=='POWERS','post-evolution boot must resume power/Buy preparation')
+assert(ctx.Strategy.route().spent.m==0 and not ctx.Strategy.route().spentUnknown)
+assert(not ctx.S.actionPending and not ctx.S.resetSession,'no replacement reset is dispatched')
+print('PASS confirmed E3 to E4 cleanup and actual BOOT resume to POWERS with absent spent balances')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)
