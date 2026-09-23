@@ -209,15 +209,55 @@ test('unknown-route construction grace is shared across changing quotes and fund
     end
 end)
 
-test('a disproved scenario loses its trial immediately without renewal',function()
+test('H35/E6 positive finish trial survives the first negative recalculation and repeated reset checks',function()
     local c,s,r,h,B=fixture();s.money=B.new(0)
-    c.readBuy=function()return {id='gate',name='Gate',cost=B.new(1,90),available=false}end
-    h.economy={scenarioReady=true,certifiable=true,catalogueRoute={time=B.new(12)}}
+    s.time=5784
+    local q={id='directBuy:XRearPlatform6',name='Platform',cost=B.new(3.088,244),available=false}
+    c.readBuy=function()return q end
+    h.economy={at=s.time,scenarioReady=true,certifiable=true,catalogueRoute={time=B.new(13.32)}}
+    assert(c.HaloRun.deferEvolution(false));local deadline=h.evolutionFinishTrial.deadline
+    s.time=5786.09;s.rate=B.new(1.19,246);q={id='directBuy:StaircasePlatform7',name='Eighth Tier',cost=B.new(4.053,249),available=false}
+    h.economy.at=s.time;h.economy.known=true;h.economy.completeLedger=true;h.economy.scenarioReady=false
+    c.Strategy.buildPermissionContext=function()return {known=true,sustained=false}end
+    for _=1,10 do assert(c.HaloRun.deferEvolution(false),'one negative forecast must not discard a 17.32-second attempt after 2.09 seconds')end
+    s.time=5786.45;h.economy.at=s.time
+    assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=6},nil,false,{})=='CONTINUE')
+    assert(h.evolutionFinishTrial.deadline==deadline,'review and dispatcher checks cannot extend the original trial')
+    s.time=5787.17;h.economy.at=s.time
+    assert(c.HaloRun.deferEvolution(false),'the actual dispatch-time guard must still protect the attempt')
+    s.time=deadline+1;assert(not c.HaloRun.deferEvolution(false),'failed trial must still expire')
+end)
+
+test('negative finish forecast needs distinct observations and a sustained real funding wall before early cancellation',function()
+    local c,s,r,h,B=fixture();s.money=B.new(0)
+    local q={id='gate',cost=B.new(1,90),available=false};c.readBuy=function()return q end
+    h.economy={at=s.time,scenarioReady=true,certifiable=true,catalogueRoute={time=B.new(20)}}
     assert(c.HaloRun.deferEvolution(false));local deadline=h.evolutionFinishTrial.deadline
     h.economy.known=true;h.economy.completeLedger=true;h.economy.scenarioReady=false
-    assert(not c.HaloRun.deferEvolution(false) and s.time<deadline)
+    c.Strategy.buildPermissionContext=function()return {known=true,sustained=true}end
+    s.time=s.time+1;h.economy.at=s.time;assert(c.HaloRun.deferEvolution(false))
+    s.time=s.time+6
+    assert(c.HaloRun.deferEvolution(false),'re-reading one old sample is not persistent negative evidence')
+    h.economy.at=s.time
+    assert(not c.HaloRun.deferEvolution(false),'fresh repeated negative forecast plus sustained wall may end the failed attempt')
     h.economy.scenarioReady=true
-    assert(not c.HaloRun.deferEvolution(false) and h.evolutionFinishTrial.deadline==deadline)
+    assert(not c.HaloRun.deferEvolution(false) and h.evolutionFinishTrial.deadline==deadline,'failed trial is not renewed by model oscillation')
+end)
+
+test('a recovered forecast or a different build gate clears negative evidence without restarting the finish trial',function()
+    local c,s,r,h,B=fixture();s.money=B.new(0)
+    local q={id='gate-a',cost=B.new(1,90),available=false};c.readBuy=function()return q end
+    h.economy={at=s.time,scenarioReady=true,certifiable=true,catalogueRoute={time=B.new(20)}}
+    assert(c.HaloRun.deferEvolution(false));local deadline=h.evolutionFinishTrial.deadline
+    c.Strategy.buildPermissionContext=function()return {known=true,sustained=true}end
+    h.economy.known=true;h.economy.completeLedger=true;h.economy.scenarioReady=false
+    s.time=s.time+1;h.economy.at=s.time;assert(c.HaloRun.deferEvolution(false))
+    s.time=s.time+6;h.economy.at=s.time;q.id='gate-b'
+    assert(c.HaloRun.deferEvolution(false),'progress to a new quote is not the old stalled gate')
+    h.economy.scenarioReady=true;assert(c.HaloRun.deferEvolution(false))
+    s.time=s.time+6;h.economy.at=s.time;h.economy.scenarioReady=false
+    assert(c.HaloRun.deferEvolution(false),'a recovered forecast must clear the previous negative streak')
+    assert(h.evolutionFinishTrial.deadline==deadline)
 end)
 
 test('full funding at final confirmation still cancels evolution despite a frozen pessimistic model',function()

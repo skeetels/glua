@@ -1,7 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 function __slctx.API.report()
-    local report={'SELL LEMONS CONTROLLER 4.0.14 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
+    local report={'SELL LEMONS CONTROLLER 4.0.15 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
         'Status='..__slctx.S.code..' | '..__slctx.S.status,'Cash='..__slctx.t(__slctx.paths.balance),
         'Last error='..__slctx.S.lastError,'firesignal tested='..tostring(__slctx.Driver.fire~=nil),
         'getconnections tested='..tostring(__slctx.Driver.connections~=nil),
@@ -15,6 +15,8 @@ function __slctx.API.report()
         'Counts buy='..__slctx.S.counts.buy..'; upgrade='..__slctx.S.counts.upgrade..'; rebirth='..__slctx.S.counts.rebirth..'; evolve='..__slctx.S.counts.evolve..'; halo='..__slctx.S.counts.halo,
         'Poll='..__slctx.CONFIG.ConfirmationPollSeconds..'; scan='..__slctx.CONFIG.ConfirmScanSeconds..'; input='..__slctx.CONFIG.RequestedClickInterval}
     local r=__slctx.Strategy.route()
+    report[#report+1]='--- RETAINED EVOLUTION DECISIONS ---'
+    for _,line in ipairs(__slctx.S.evolutionDecisions or {})do report[#report+1]=line end
     if __slctx.API.dataReport then report[#report+1]=__slctx.API.dataReport() end
     report[#report+1]='PHASE='..r.phase..' | '..tostring(r.reason)
     report[#report+1]='Target E'..tostring(r.evo and r.evo.index+1)..'='..__slctx.BN.format(r.target)..'; total minimum='..__slctx.BN.format(r.totalMinimum)..'; historical spending unknown='..tostring(r.spentUnknown)
@@ -133,7 +135,7 @@ function __slctx.API.report()
     local base=__slctx.previousReport30();local h=__slctx.HaloRun.state();local f=h.forecast;local m=h.book.model
     local text,fraction,eta,progress=__slctx.HaloRun.progress()
     local economic=progress.economy or {}
-    local out={ '--- HALO ROUTE ECONOMY 4.0.14 ---',
+    local out={ '--- HALO ROUTE ECONOMY 4.0.15 ---',
         'HALO_MODE='..h.mode..'; halo='..tostring(h.book.halo)..'; evolution='..tostring(h.book.evolution),
         'HALO_READINESS fraction='..tostring(fraction)..'; type=route-income-capacity; bar is explicitly logarithmic, NOT percent of elapsed time',
         'REQUIRED_INCOME='..__slctx.BN.format(economic.requiredRate)..'; CURRENT_INCOME='..__slctx.BN.format(economic.currentRate)
@@ -213,7 +215,7 @@ function __slctx.API.copyLog()
     __slctx.S.connections[#__slctx.S.connections+1]=x.Activated:Connect(function() __slctx.exportFrame:Destroy();__slctx.exportFrame=nil end)
 end
 function __slctx.API.exportCycleState()
-    return {place=game.PlaceId,user=__slctx.player.UserId,route=__slctx.S.route,pausedAt=__slctx.S.manualPauseAt or __slctx.now(),resetScans=__slctx.S.resetScans}
+    return {place=game.PlaceId,user=__slctx.player.UserId,route=__slctx.S.route,pausedAt=__slctx.S.manualPauseAt or __slctx.now(),resetScans=__slctx.S.resetScans,evolutionDecisions=__slctx.S.evolutionDecisions}
 end
 function __slctx.API.callbackPending() return __slctx.S.actionPending~=nil or __slctx.S.resetChildPending~=nil
     or __slctx.S.resetSession~=nil or __slctx.S.testing==true or (__slctx.S.route and __slctx.S.route.powerUnresolved~=nil) end

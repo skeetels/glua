@@ -1,6 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 __slctx.HaloRun = {}
+__slctx.S.evolutionDecisions=__slctx.previousCycleState and __slctx.previousCycleState.evolutionDecisions or {}
 do
 local index=__slctx.HaloPlan.index(__slctx.HaloCatalogue)
 local function bnmin(a,b)if not a then return b end;if not b then return a end;return __slctx.BN.cmp(a,b)<0 and a or b end
@@ -323,6 +324,19 @@ function __slctx.HaloRun.peekProgress()
     end
     h.passiveInvestorText=signature
 end
+function __slctx.HaloRun.noteEvolutionDecision(reason,q)
+    local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state();local v=h.economy;local trial=h.evolutionFinishTrial
+    local line=string.format('[%.2f] ',__slctx.now())..reason..'; H='..tostring(h.book.halo)..'; E='..tostring(r.evo and r.evo.index)
+        ..'; gate='..tostring(q and (q.key or q.id or q.name))..'; cost='..fmt(q and q.cost)..'; cash='..fmt(__slctx.cash())
+        ..'; income='..fmt(v and v.currentRate)..'; scenarioReady='..tostring(v and v.scenarioReady)
+        ..'; remaining='..tostring(h.remaining and h.remaining.count)..'; scenarioSeconds='..fmt(v and v.catalogueRoute and v.catalogueRoute.time)
+        ..'; trialLeft='..tostring(trial and math.max(0,trial.deadline-__slctx.now()))
+        ..'; negativeSamples='..tostring(trial and trial.negative and trial.negative.samples or 0)
+        ..'; invalidReason='..tostring(trial and trial.invalidReason)
+    local records=__slctx.S.evolutionDecisions;records[#records+1]=line
+    while #records>24 do table.remove(records,1)end
+    __slctx.log('EVOLUTION_DECISION',line)
+end
 function __slctx.HaloRun.deferEvolution(refresh)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if r.endPurchased or r.completionSeen then return true,'HALO_COMPLETION_TAKES_PRIORITY' end
@@ -342,10 +356,6 @@ function __slctx.HaloRun.deferEvolution(refresh)
     -- Do not cancel an already selected evolution when that one purchase funds.
     local routeTooLong=v and v.known and v.certifiable and v.completeLedger
         and v.catalogueRoute and v.scenarioReady==false and not v.ready and not v.levelProjection
-    if routeTooLong then
-        if trial then trial.invalidated=true end
-        return false,'EVOLUTION_CURRENT_ROUTE_TOO_LONG'
-    end
     -- A scenario can justify a bounded construction attempt, not an unconditional
     -- FINISH promise. Its original deadline never slides with minor upgrades.
     if not trial and v and v.scenarioReady and v.certifiable and not v.levelProjection and v.catalogueRoute then
@@ -356,9 +366,42 @@ function __slctx.HaloRun.deferEvolution(refresh)
             trial={started=__slctx.now(),deadline=__slctx.now()+math.min(seconds,limit)+__slctx.CONFIG.HaloFinishGraceSeconds}
             h.evolutionFinishTrial=trial
             __slctx.log('EVOLUTION_FINISH_TRIAL','continue current base; bounded scenario seconds='..(trial.deadline-trial.started)..'; no reset sent')
+            __slctx.HaloRun.noteEvolutionDecision('TRIAL_STARTED',q)
         end
     end
-    if trial and not trial.invalidated and __slctx.now()<trial.deadline then return true,'FINISH_SCENARIO_TRIAL_ACTIVE' end
+    if trial and not trial.invalidated and __slctx.now()<trial.deadline then
+        if routeTooLong then
+            -- A newly exposed gate or a brief income dip can reverse a price-order
+            -- scenario. Repeated checks of that ONE snapshot are not confirmation.
+            local key=q and tostring(q.id or q.name)
+            local negative=trial.negative
+            if not negative or negative.key~=key then
+                negative={key=key,since=__slctx.now(),samples=0};trial.negative=negative
+                __slctx.HaloRun.noteEvolutionDecision('TRIAL_RECHECK',q)
+            end
+            local at=v.at
+            if type(at)=='number' and at<=__slctx.now() and __slctx.now()-at<=__slctx.CONFIG.CataloguePlanSeconds*2
+                and (not negative.lastAt or at-negative.lastAt>=__slctx.CONFIG.CataloguePlanSeconds) then
+                negative.lastAt=at;negative.samples=negative.samples+1
+            end
+            local build=__slctx.Strategy.buildPermissionContext and __slctx.Strategy.buildPermissionContext(q,nil)
+            local stalled=build and build.known and build.sustained and q and q.cost and money
+                and __slctx.BN.cmp(money,q.cost)<0
+            if stalled and negative.samples>=2
+                and __slctx.now()-negative.since>=__slctx.CONFIG.EvolutionForecastConfirmSeconds then
+                trial.invalidated=true;trial.invalidReason='SUSTAINED_BUILD_WALL_AND_NEGATIVE_FORECASTS'
+                __slctx.HaloRun.noteEvolutionDecision('TRIAL_INVALIDATED',q)
+                return false,'EVOLUTION_CURRENT_ROUTE_TOO_LONG'
+            end
+            return true,'FINISH_TRIAL_RECHECKING'
+        end
+        trial.negative=nil
+        return true,'FINISH_SCENARIO_TRIAL_ACTIVE'
+    end
+    if trial and not trial.invalidated and __slctx.now()>=trial.deadline and not trial.expiryLogged then
+        trial.expiryLogged=true;__slctx.HaloRun.noteEvolutionDecision('TRIAL_EXPIRED',q)
+    end
+    if routeTooLong then return false,'EVOLUTION_CURRENT_ROUTE_TOO_LONG' end
     if not q or not q.cost or not money then
         if __slctx.CONFIG.DirectPurchases and __slctx.readBuy then return true,'EVOLUTION_WAIT_CURRENT_BUY_DATA' end
         return false
@@ -685,6 +728,7 @@ function __slctx.HaloRun.selectEvolution()
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state();local v=h.economy
     r.capabilityOnly=nil;r.reserveSince=__slctx.now();h.progressReviewHint=nil
     r.lastDecision='EVOLUTION_NO_SHORT_FINISH'
+    __slctx.HaloRun.noteEvolutionDecision('EVOLUTION_SELECTED',r.buyQuote)
     __slctx.log('EVOLUTION_ROUTE_CHOICE','remaining='..tostring(h.remaining and h.remaining.count)
         ..'; currentScenarioReady='..tostring(v and v.scenarioReady)
         ..'; incomeGapLog10='..tostring(v and v.decadesShort)
@@ -1101,6 +1145,11 @@ function __slctx.HaloRun.progress()
     local gap=v.factor and ('Нужно усиление ×'..__slctx.BN.format(v.factor)) or 'доход уточняется'
     if h.mode=='FINISH' then gap='Остаток обеспечен по проверяемому бюджету; пересчитываю по ходу.'
     elseif v.scenarioReady then gap='С будущими бонусами финал возможен; порядок открытия не подтверждён.' end
+    local trial=h.evolutionFinishTrial
+    if h.mode~='FINISH' and trial and not trial.invalidated and __slctx.now()<trial.deadline then
+        gap=(trial.negative and 'Перепроверяю прогноз; ' or 'Проверяю возможность завершения; ')
+            ..'база продолжает развиваться, эволюция отложена.'
+    end
     local text=heading..'\nДоход/с '..current..' → ≈ '..required..' ('..mode..')\n'..gap
     local bar=v.logFraction or v.fraction or 0
     if h.mode~='FINISH' then bar=math.min(.999,bar) end

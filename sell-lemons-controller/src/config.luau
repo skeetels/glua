@@ -143,6 +143,7 @@ __slctx.CONFIG = {
     UnknownEvolutionReviewSeconds = 12,
     EvolutionReserveWaitSeconds = 2,
     EvolutionDecisionSeconds = 2, -- Ready evolution cannot wait for new buys/upgrades or the rebirth watchdog.
+    EvolutionForecastConfirmSeconds = 5, -- Distinct negative forecasts plus a sustained funding wall, while construction continues.
     UpgradeActionEstimate = 0.18, -- Replaced with measured successful receipt latency.
     IncomeSampleSeconds = 0.12,
     MajorMultiplier = 100000,

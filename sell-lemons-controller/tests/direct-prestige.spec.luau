@@ -200,3 +200,31 @@ do
     assert(not c.doReset('halo') and #calls==0,'unfinished base cannot send Ascend')
 end
 print('PASS ready gates and current-route protection apply to direct resets immediately before sending')
+
+for _,stage in ipairs({'selection','ready-delay','dispatch'})do
+    local c,v,l,r,calls=directFixture('evolve','ok')
+    require('../src/core/HaloPlanner')(c);require('../src/core/EconomyPlanner')(c)
+    c.HaloCatalogue={{id=1,name='The End',cost=c.BN.new(1,264)}}
+    c.Strategy.effectiveActionSeconds=function()return .18 end
+    c.Strategy.buildPermissionContext=function()return {known=true,sustained=false}end
+    c.cash=function()return c.UpgradeMath.bn(v.attrs.Cash)end
+    c.readBuy=function()return {id='directBuy:StaircasePlatform7',name='Eighth Tier',cost=c.BN.new(4.053,249),available=false}end
+    v.attrs.Evolution=6;v.attrs.Ascension=35;v.attrs.Cash=245;v.attrs.CashSpent=244
+    require('../src/strategy/HaloController')(c)
+    c.HaloRun.plan=function()end -- Feed the observed forecast transitions, keep the real policy and dispatcher.
+    local h=c.HaloRun.state()
+    h.economy={known=true,certifiable=true,completeLedger=true,scenarioReady=false,catalogueRoute={time=c.BN.new(1000)}}
+    local sleep=c.sleep
+    local function beginTrial()
+        h.economy.scenarioReady=true;h.economy.catalogueRoute.time=c.BN.new(13.32);h.economy.at=c.now()
+        assert(c.HaloRun.deferEvolution(false))
+        sleep(2.09);h.economy.scenarioReady=false;h.economy.at=c.now()
+    end
+    if stage=='selection'then beginTrial()
+    elseif stage=='ready-delay'then c.sleep=function(dt)local ok=sleep(dt);beginTrial();return ok end
+    else c.beforeJobs=beginTrial end
+    assert(not c.doReset('evolve') and #calls==0 and c.S.counts.evolve==0,
+        'real finish-trial policy must veto the direct evolution at '..stage)
+    assert(c.S.running and not c.S.actionPending and not r.directResetUnresolved,'economic veto is not an error or unresolved reset')
+end
+print('PASS H35/E6 trial reversal vetoes real direct Evolution selection, ready delay and final dispatch without GUI or a request')
