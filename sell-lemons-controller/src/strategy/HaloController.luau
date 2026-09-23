@@ -626,6 +626,8 @@ function __slctx.HaloRun.resetForecast(inv,goal)
     local setup=__slctx.Strategy.actionSeconds('rebirth')+__slctx.CONFIG.AfterResetWait
     if spend.m>0 then setup=setup+__slctx.Strategy.actionSeconds('power')+__slctx.CONFIG.InitialMenuTripSeconds end
     local context={rate=rate,plannedSpend=spend,powerGoal=goal}
+    -- Share the armed, non-renewable construction wait with both comparisons.
+    local localContext=__slctx.Strategy.resetContext(inv,false)
     -- A faster confirmed batch can repay a reset through avoided input work even
     -- while catalogue prices are uncalibrated or investor income grows modestly.
     -- Count remaining budget work, never already-completed clicks as future savings.
@@ -638,8 +640,7 @@ function __slctx.HaloRun.resetForecast(inv,goal)
         context.rebuildSeconds=__slctx.HaloRun.bootstrapWorkSeconds(goal)
         context.resetSeconds=__slctx.Strategy.actionSeconds('rebirth')
         context.powerSeconds=__slctx.Strategy.actionSeconds('power')+__slctx.CONFIG.InitialMenuTripSeconds
-        context.protectedMajor=q and (q.multiplier or 0)>=__slctx.CONFIG.MajorMultiplier
-            and eta and eta<=__slctx.Strategy.savingsRemaining(q,false) or false
+        context.protectedMajor=localContext.protectedMajor
         local yes,reason,gain,detail=__slctx.Planner.capabilityResetDecision(inv,__slctx.CONFIG,context)
         if yes then
             detail.authorization='capability-work-331'
@@ -654,7 +655,6 @@ function __slctx.HaloRun.resetForecast(inv,goal)
     -- Ordinary rebirth must repay itself on the CURRENT observed funding block.
     -- A remote catalogue ETA (the H23 report reached 8.676e95 seconds) is not
     -- an authorization: its constant-layout assumption ignores ongoing growth.
-    local localContext=__slctx.Strategy.resetContext(inv,false)
     localContext.plannedSpend=spend
     localContext.buyQuote=r.buyQuote;localContext.money=__slctx.cash()
     local yes,reason,detail=__slctx.Planner.observedBlockReset(inv,__slctx.CONFIG,localContext)
@@ -760,6 +760,14 @@ function __slctx.HaloRun.review()
         end
         __slctx.log('HALO_PREPARATION_DECISION',tostring(reason)..'; remaining='..fmt(h.remaining and h.remaining.cost)
             ..'; pass retained='..tostring(r.pass and r.pass.id)..'; investor target='..fmt(h.requiredInvestors))
+        if reason=='BUILD_TARGET_SOON' or reason=='PROTECTED_MAJOR_TARGET' then
+            -- Honor the promise: retain cash for this exact quote instead of
+            -- spending it on +1 levels and repeatedly predicting the same ETA.
+            if __slctx.Strategy.reserveGoal(r.buyQuote,__slctx.Strategy.rate(),reason)then
+                r.capabilityOnly=nil;r.reviewReturn=nil;r.resetPowerPlan=nil
+                return
+            end
+        end
     end
     if r.evo and r.evo.ready and __slctx.CONFIG.AutoEvolution and __slctx.S.resetEnabled then
         __slctx.HaloRun.selectEvolution();return
@@ -1044,7 +1052,7 @@ function __slctx.HaloRun.objectiveWatch()
     if __slctx.now()<(r.evolutionReserveRetryAt or 0)or isPending()then return false end
     local nextBuy=__slctx.readBuy();local amount=__slctx.cash()
     if nextBuy and __slctx.Planner.isTerminalName(nextBuy.name) and nextBuy.cost and amount and __slctx.BN.cmp(amount,nextBuy.cost)>=0 then return false end
-    local growthPhase=({BUY=true,UPGRADE=true,REBUILD=true,WAIT_GROWTH=true,CHECKPOINT=true})[r.phase]
+    local growthPhase=({BUY=true,UPGRADE=true,REBUILD=true,WAIT_GROWTH=true,WAIT_CASH=true,CHECKPOINT=true})[r.phase]
     if r.evo.ready and growthPhase and __slctx.now()>=(h.nextEvolutionReview or 0) then
         h.nextEvolutionReview=__slctx.now()+__slctx.CONFIG.EvolutionDecisionSeconds
         __slctx.HaloRun.plan(false)
@@ -1060,7 +1068,7 @@ function __slctx.HaloRun.objectiveWatch()
     h.lastObjectiveText=changed
     -- A low-frequency safety observation remains; it is NOT permission to rebirth.
     local watchdog=__slctx.now()-(r.lastEvolutionRead or __slctx.now())>=__slctx.CONFIG.CatalogueObjectiveWatchdogSeconds
-    if (near or watchdog)and ({BUY=true,UPGRADE=true,REBUILD=true,WAIT_GROWTH=true})[r.phase]then
+    if (near or watchdog)and ({BUY=true,UPGRADE=true,REBUILD=true,WAIT_GROWTH=true,WAIT_CASH=true})[r.phase]then
         h.objectiveReturn=r.phase;__slctx.Strategy.phase('OBJECTIVE','проверка этапа по изменению прогресса/контрольному сроку');return true
     end
     return false

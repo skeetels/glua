@@ -1,7 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 function __slctx.API.report()
-    local report={'SELL LEMONS CONTROLLER 4.0.12 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
+    local report={'SELL LEMONS CONTROLLER 4.0.13 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
         'Status='..__slctx.S.code..' | '..__slctx.S.status,'Cash='..__slctx.t(__slctx.paths.balance),
         'Last error='..__slctx.S.lastError,'firesignal tested='..tostring(__slctx.Driver.fire~=nil),
         'getconnections tested='..tostring(__slctx.Driver.connections~=nil),
@@ -19,7 +19,7 @@ function __slctx.API.report()
     report[#report+1]='PHASE='..r.phase..' | '..tostring(r.reason)
     report[#report+1]='Target E'..tostring(r.evo and r.evo.index+1)..'='..__slctx.BN.format(r.target)..'; total minimum='..__slctx.BN.format(r.totalMinimum)..'; historical spending unknown='..tostring(r.spentUnknown)
     report[#report+1]='Rebirth policy=observed funding block + bounded output after rebuild at sustained wall; funded construction protected; rebuild estimate='..tostring(r.rebuildEstimate)
-    report[#report+1]='Gain='..tostring(r.gain)..'; wait deadline='..tostring(r.wall and r.wall.deadline)..'; last decision='..r.lastDecision
+    report[#report+1]='Gain='..tostring(r.gain)..'; wait deadline='..tostring(r.savingsBudget and r.savingsBudget.deadline or r.wall and r.wall.deadline)..'; last decision='..r.lastDecision
     report[#report+1]='Committed full sweep='..tostring(r.pass and r.pass.id)..'; next stand='..tostring(r.pass and r.pass.index)
         ..'; stands='..tostring(r.pass and #r.pass.order)..'; finished='..tostring(r.pass and r.pass.finished)
         ..'; stand position retained through reviews; profitable global boost can interrupt once'
@@ -87,6 +87,9 @@ function __slctx.API.report()
         ..'; restore debt='..tostring(bp.debt)..'; repeated confirmed buys='..bp.repeated
     report[#report+1]='BUILD_WALL pass='..tostring(bw and bw.pass)..'; weak='..tostring(bw and bw.weak)
         ..'; quote verified='..tostring(r.buildQuote and __slctx.now()-r.buildQuote.at<=__slctx.CONFIG.BuildQuoteFreshSeconds)
+    local budget=r.savingsBudget
+    report[#report+1]='BUILD_WAIT target='..tostring(budget and budget.id)..'; remaining seconds='
+        ..tostring(budget and math.max(0,budget.deadline-__slctx.now()))..'; active='..tostring(r.phase=='WAIT_CASH')
     report[#report+1]='--- RESET EXECUTION 2.8.2 ---'
     local ri=r.resetIntent;local rx=r.lastResetExecution
     report[#report+1]='RESET_INTENT id='..tostring(ri and ri.id)..'; remaining='..tostring(ri and math.max(0,ri.expiresAt-__slctx.now()))
@@ -130,7 +133,7 @@ function __slctx.API.report()
     local base=__slctx.previousReport30();local h=__slctx.HaloRun.state();local f=h.forecast;local m=h.book.model
     local text,fraction,eta,progress=__slctx.HaloRun.progress()
     local economic=progress.economy or {}
-    local out={ '--- HALO ROUTE ECONOMY 4.0.12 ---',
+    local out={ '--- HALO ROUTE ECONOMY 4.0.13 ---',
         'HALO_MODE='..h.mode..'; halo='..tostring(h.book.halo)..'; evolution='..tostring(h.book.evolution),
         'HALO_READINESS fraction='..tostring(fraction)..'; type=route-income-capacity; bar is explicitly logarithmic, NOT percent of elapsed time',
         'REQUIRED_INCOME='..__slctx.BN.format(economic.requiredRate)..'; CURRENT_INCOME='..__slctx.BN.format(economic.currentRate)

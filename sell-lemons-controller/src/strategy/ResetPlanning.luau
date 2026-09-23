@@ -113,7 +113,12 @@ end
 function __slctx.Strategy.resetContext(inv,capabilityOnly)
     local r=__slctx.Strategy.route();local q=r.buyQuote;local amount=__slctx.cash();local rate,rateSource,rateKind=__slctx.Strategy.rate()
     local eta=q and q.cost and __slctx.Core.eta(amount,q.cost,rate) or math.huge
-    local remaining=__slctx.Strategy.savingsRemaining(q,false)
+    -- BUILD_TARGET_SOON/PROTECTED_MAJOR_TARGET are bounded promises, not free
+    -- queries that return MaxWaitSeconds forever without starting the clock.
+    local short=eta and eta>0 and eta<math.huge and eta<=__slctx.CONFIG.BuildShortWaitSeconds
+    local major=q and (q.multiplier or 0)>=__slctx.CONFIG.MajorMultiplier
+        and eta and eta>0 and eta<math.huge and eta<=__slctx.CONFIG.MaxWaitSeconds
+    local remaining=__slctx.Strategy.savingsRemaining(q,(short or major) and true or false)
     local goal=__slctx.Strategy.updatePowerGoal(inv);local planned=__slctx.BN.new(0);local powerSeconds=0
     -- Spend the selected quoted price, not an imaginary mandatory 5% debit.
     if __slctx.CONFIG.AutoInvestorPowers and goal and goal.canBuyAfter then

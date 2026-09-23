@@ -144,7 +144,14 @@ function __slctx.Strategy.savingsRemaining(q,arm)
     if not q then return 0 end
     if r.savingsBudget and r.savingsBudget.id~=q.id then r.savingsBudget=nil end
     if not r.savingsBudget and arm then
-        r.savingsBudget={id=q.id,start=__slctx.now(),deadline=__slctx.now()+__slctx.CONFIG.MaxWaitSeconds}
+        local start=__slctx.now();local w=r.buildWall
+        -- A repeatedly observed funding wall has already consumed time. The
+        -- first strategic review must not award it another fresh grace period.
+        if w and w.key==__slctx.Strategy.baseQuoteKey(q) and w.serial==(r.runBuyCount or 0)
+            and type(w.started)=='number' and w.started<=start then start=w.started end
+        r.savingsBudget={id=q.id,start=start,deadline=start+__slctx.CONFIG.MaxWaitSeconds}
+        __slctx.log('BUILD_WAIT_BUDGET','target='..tostring(q.name)..'; elapsed='..string.format('%.2f',__slctx.now()-start)
+            ..'s; remaining='..string.format('%.2f',math.max(0,r.savingsBudget.deadline-__slctx.now()))..'s; deadline cannot renew')
     end
     local budget=r.savingsBudget
     return budget and math.max(0,budget.deadline-__slctx.now()) or __slctx.CONFIG.MaxWaitSeconds
