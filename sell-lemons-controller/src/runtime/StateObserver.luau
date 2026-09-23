@@ -56,6 +56,7 @@ return function(ctx)
     function observer.poll()
         if ctx.S.unloaded or ctx.now()<observer.nextPoll then return end
         observer.nextPoll=ctx.now()+0.25
+        if ctx.Data then ctx.Data.poll() end
         if ctx.S.resetSession or ctx.S.resetChildPending then return end
         for _,key in ipairs({'investors','evolution','halo'}) do
             local ok,v,r=pcall(raw,key)

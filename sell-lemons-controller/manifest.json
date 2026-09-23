@@ -1,5 +1,5 @@
 {
-  "version": "4.0.0-dev",
+  "version": "4.0.1-dev",
   "entry": [
     "src/config.luau",
     "src/core/Numeric.luau",
@@ -15,6 +15,7 @@
     "src/adapters/SignalInput.luau",
     "src/adapters/Navigation.luau",
     "src/adapters/GuiState.luau",
+    "src/runtime/ReplicatedState.luau",
     "src/runtime/StateObserver.luau",
     "src/runtime/Transactions.luau",
     "src/runtime/Confirmation.luau",

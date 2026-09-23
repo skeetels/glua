@@ -15,6 +15,7 @@ function __slctx.API.report()
         'Counts buy='..__slctx.S.counts.buy..'; upgrade='..__slctx.S.counts.upgrade..'; rebirth='..__slctx.S.counts.rebirth..'; evolve='..__slctx.S.counts.evolve..'; halo='..__slctx.S.counts.halo,
         'Poll='..__slctx.CONFIG.ConfirmationPollSeconds..'; scan='..__slctx.CONFIG.ConfirmScanSeconds..'; input='..__slctx.CONFIG.RequestedClickInterval}
     local r=__slctx.Strategy.route()
+    if __slctx.API.dataReport then report[#report+1]=__slctx.API.dataReport() end
     report[#report+1]='PHASE='..r.phase..' | '..tostring(r.reason)
     report[#report+1]='Target E'..tostring(r.evo and r.evo.index+1)..'='..__slctx.BN.format(r.target)..'; total minimum='..__slctx.BN.format(r.totalMinimum)..'; historical spending unknown='..tostring(r.spentUnknown)
     report[#report+1]='Rebirth policy=observed funding block + bounded output after rebuild at sustained wall; funded construction protected; rebuild estimate='..tostring(r.rebuildEstimate)

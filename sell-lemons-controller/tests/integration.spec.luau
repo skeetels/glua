@@ -14,6 +14,7 @@ do local initialize=require('../src/runtime/Focus');setfenv(initialize,mock.env)
 do local initialize=require('../src/adapters/SignalInput');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/adapters/Navigation');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/adapters/GuiState');setfenv(initialize,mock.env);initialize(ctx) end
+do local initialize=require('../src/runtime/ReplicatedState');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/StateObserver');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/Transactions');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/Confirmation');setfenv(initialize,mock.env);initialize(ctx) end
@@ -43,6 +44,7 @@ ctx.Observer.poll()
 local report=ctx.API.report()
 assert(type(report)=='string' and report:find('Controller 4.0',1,true))
 assert(type(ctx.API.inspectData())=='string')
+assert(type(ctx.API.dataReport())=='string')
 local observations=ctx.API.observations()
 assert(observations.revision==0,'missing GUI data must stay unknown')
 ctx.API.antiIdle(false);assert(ctx.API.antiIdle().enabled==false)
