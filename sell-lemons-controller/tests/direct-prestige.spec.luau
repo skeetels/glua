@@ -102,9 +102,9 @@ assert(c.readEvolution().index==3)
 -- Captured E3 -> E4 state, including absent reset expense attributes.
 v.attrs.Evolution=4;v.attrs.TotalEvolves=165;v.attrs.Rebirths=0;v.attrs.TotalRebirths=1109
 v.attrs.Cash=57.460962165077184;v.attrs.Investors=3.9556394051741783
-v.attrs.CashSpent=nil;v.attrs.InvestorsSpent=nil
--- The live report rejects CashSpent in conversion while the standalone runtime
--- accepts its synthetic -infinity. Zero balances must bypass that boundary.
+v.attrs.CashSpent='0';v.attrs.InvestorsSpent='0'
+-- TycoonValues.GetHugeNumber decodes string "0" as Huge.zero. The older
+-- report filters nonnumeric attributes, disguising this value as missing.
 local originalBN=c.UpgradeMath.bn
 c.UpgradeMath.bn=function(raw)
     if type(raw)~='number' or raw~=raw or math.abs(raw)==math.huge then return nil end
@@ -116,8 +116,9 @@ assert(evo.index==4 and not evo.ready and evo.bonus.m==0)
 assert(inv.investorsSpent.m==0 and r.spent.m==0 and not r.spentUnknown)
 assert(math.abs(c.BN.log(inv.investors)-3.9556394051741783)<1e-10)
 assert(inv.reward.m>0 and #calls==0,'reading reset state must not send a replacement reset')
+v.attrs.CashSpent=nil;v.attrs.InvestorsSpent=nil;assert(c.readInvestors().investorsSpent.m==0)
 v.attrs.CashSpent=0;assert(c.readInvestors(),'log10 zero is one currency unit, not a missing balance')
 v.attrs.CashSpent='invalid';assert(not c.readInvestors())
 v.attrs.CashSpent=math.huge;assert(not c.readInvestors())
 v.attrs.CashSpent=0/0;assert(not c.readInvestors())
-print('PASS captured post-evolution balances bypass non-finite conversion; fresh E4 and zero expenses are readable, malformed values still fail')
+print('PASS string and absent zero expense balances decode after evolution; fresh E4 is readable and malformed values still fail')

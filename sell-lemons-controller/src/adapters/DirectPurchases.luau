@@ -87,7 +87,8 @@ return function(ctx)
     end
     function A.wallet()
         local s,why=D.state();if not s then return nil,why end
-        local bank=M.bn(attr(s.values,'Investors'));if not bank then return nil,'INVESTORS_UNAVAILABLE' end
+        local raw=attr(s.values,'Investors')
+        local bank=raw=='0' and {m=0,e=0} or M.bn(raw);if not bank then return nil,'INVESTORS_UNAVAILABLE' end
         return {investors=bank,time=ctx.now()},s
     end
     function A.powers()
@@ -101,7 +102,7 @@ return function(ctx)
                 local bonus=name=='UpgradeStack' and ({[0]='+1','+5','+25','+100','max'})[level] or tostring(level)
                 out[#out+1]={source='directPower',name=name,title=data.Title,path='directPower/'..name,
                     level=level,permanent=permanent,price=M.bn(raw),priceLog=raw,priceText=ctx.BN.format(M.bn(raw)),
-                    bonus=bonus,info='',available=raw<=attr(s.values,'Investors'),observedAt=ctx.now(),snapshot=s}
+                    bonus=bonus,info='',available=ctx.BN.cmp(M.bn(raw),wallet.investors)<=0,observedAt=ctx.now(),snapshot=s}
             end
         end
         table.sort(out,function(a,b)

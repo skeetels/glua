@@ -38,7 +38,7 @@ local function fixture(mode)
         return o
     end
     local levels=object('Upgrades',{})
-    local values=object('Values',{Cash=mode=='poor' and -math.huge or 8,Ascension=0,Evolution=5})
+    local values=object('Values',{Cash=mode=='poor' and -math.huge or mode=='zero-string' and '0' or 8,Ascension=0,Evolution=5})
     local powers=object('Powers',{UpgradeStack=4},{Permanent=object('Permanent'),Selected=object('Selected')})
     local streams=object('Streams')
     local income=object('Income',{ValueMultiplier=0,RateMultiplier=0},{Streams=streams})
@@ -117,3 +117,8 @@ local rows=c.DirectUpgrades.allocate(s,c.DirectUpgrades.cards(s));assert(c.Direc
 local c=fixture('inversion-not-replicated');local s,why=c.DirectUpgrades.state()
 assert(not s and why=='INVERSION_PRICE_STATE_UNAVAILABLE')
 print('PASS real Main-world missing InversionCards folder; nonzero inversion still requires replicated pricing state')
+local c,values,_,calls=fixture('zero-string');local s=assert(c.DirectUpgrades.state())
+assert(s.cash==-math.huge and c.cash().m==0)
+assert(#c.DirectUpgrades.allocate(s,c.DirectUpgrades.cards(s))==0 and #calls==0)
+values.attrs.Cash=0;assert(c.DirectUpgrades.state().cash==0 and c.cash().m==1)
+print('PASS replicated string zero cash differs from numeric log10 zero and never authorizes unfunded upgrades')

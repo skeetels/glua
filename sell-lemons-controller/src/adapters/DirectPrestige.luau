@@ -17,6 +17,7 @@ return function(ctx)
         local rs=game:GetService('ReplicatedStorage')
         for _,spec in ipairs({
             {'Modules.Tycoon.Component.TycoonBalances',4280,537675623},
+            {'Modules.Tycoon.Component.TycoonValues',1214,285065225},
             {'Modules.Tycoon.Component.TycoonRebirth',6310,4193420756},
             {'Modules.Tycoon.Component.Client.ClientTycoonRebirth',1232,3294875325},
             {'Modules.Tycoon.Component.TycoonEvolution',6812,3704414728},
@@ -48,7 +49,7 @@ return function(ctx)
         local data={snapshot=s}
         for _,key in ipairs({'Cash','CashSpent','Investors','InvestorsSpent'})do
             local raw=attr(s.values,key)
-            if raw==-math.huge then raw=nil end
+            if raw=='0' or raw==-math.huge then raw=nil end -- TycoonValues.GetHugeNumber
             -- GetHugeNumber defaults absent attributes to Huge.zero. Do not
             -- create -infinity and send it through the ordinary BN converter.
             if raw~=nil and not M.bn(raw)then

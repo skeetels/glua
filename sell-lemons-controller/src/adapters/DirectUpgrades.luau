@@ -21,6 +21,7 @@ return function(ctx)
         for _,spec in ipairs({
             {'Balance',340421,914084511},{'Config',19699,154165715},
             {'Modules.Huge',8091,539421471},
+            {'Modules.Tycoon.Component.TycoonValues',1214,285065225},
             {'Modules.Tycoon.Entity.TycoonEarner',5781,1426949448},
             {'Modules.Tycoon.Entity.Client.ClientTycoonEarner',9539,1200172661},
             {'Modules.Tycoon.Component.TycoonIncome',7049,3274092081},
@@ -64,6 +65,7 @@ return function(ctx)
         local root=child(own,'Values');local values=child(root,'Values');local levels=child(root,'Upgrades');local powers=child(root,'Powers')
         if not values or not levels or not powers then return nil,'REPLICATED_TABLES_UNAVAILABLE' end
         local cash=attr(values,'Cash');local asc=attr(values,'Ascension') or 0
+        if cash=='0' then cash=-math.huge end -- TycoonValues.GetHugeNumber zero sentinel
         if not number(cash) or not integer(asc) then return nil,'CASH_OR_ASCENSION_UNAVAILABLE' end
         local inversion=child(root,'InversionCards')
         -- InstanceTable.new(name, root, true) uses a detached empty Configuration

@@ -80,6 +80,13 @@ assert(not c.DirectPurchases.powerPurchase(item) and #calls==1)
 local expensive=c.Powers.read()[1];assert(expensive.level==3 and expensive.priceLog==63 and not expensive.available)
 assert(not c.DirectPurchases.powerPurchase(expensive) and #calls==1)
 print('PASS Powers merges permanent levels, spends investors once, verifies exact level and rejects unfunded next tier')
+do
+    local c,v,_,_,calls=fixture('ok');v.attrs.Investors='0'
+    assert(c.Powers.wallet().investors.m==0)
+    for _,item in ipairs(c.Powers.read())do assert(not item.available and not c.DirectPurchases.powerPurchase(item))end
+    assert(#calls==0);v.attrs.Investors=0;assert(c.Powers.wallet().investors.m==1)
+    print('PASS string zero investor bank is readable and authorizes no Powers purchase')
+end
 for _,mode in ipairs({'reject','silent','reset'})do
     local c,_,_,_,calls=fixture(mode);local q=assert(c.readBuy())
     assert(not c.Strategy.safePurchase(q) and c.S.counts.buy==0 and #calls==1 and not c.S.running)

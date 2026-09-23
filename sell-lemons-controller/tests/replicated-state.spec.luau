@@ -57,6 +57,9 @@ assert(linear.encodings.Cash=='linear' and ctx.BN.number(linear.amounts.Cash)==1
 cashLog=10
 assert(sample().amounts.Cash==nil,'visible mismatch must revoke cached encoding')
 print('PASS independently matching linear encoding and mismatch revocation')
+values.attrs.CashSpent='0'
+ctx.CONFIG=ctx.CONFIG or {}
+assert(ctx.API.dataReport():find('CashSpent raw="0" type=string',1,true),'report must preserve the actual type of filtered balances')
 owner.Value={};visible=false
 assert(ctx.API.dataSnapshot()==nil and ctx.cash()==nil,'ownership loss must clear all values')
 assert(ctx.Data.root==nil and next(ctx.Data.modes)==nil)

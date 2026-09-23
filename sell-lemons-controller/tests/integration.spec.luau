@@ -88,7 +88,7 @@ end
 ctx.HaloRun.boot();assert(ctx.S.running and ctx.Strategy.route().evo.index==3)
 values.attrs.Evolution=4;values.attrs.TotalEvolves=165;values.attrs.Rebirths=0
 values.attrs.Cash=57.460962165077184;values.attrs.Investors=3.9556394051741783
-values.attrs.CashSpent=nil;values.attrs.InvestorsSpent=nil
+values.attrs.CashSpent='0';values.attrs.InvestorsSpent='0'
 ctx.Strategy.afterReset('evolve',{index=3})
 assert(ctx.Strategy.route().phase=='BOOT' and ctx.Strategy.route().evo==nil)
 ctx.HaloRun.boot()
@@ -96,7 +96,7 @@ assert(ctx.S.running and ctx.Strategy.route().evo.index==4,ctx.S.code..' '..ctx.
 assert(ctx.Strategy.route().phase=='POWERS','post-evolution boot must resume power/Buy preparation')
 assert(ctx.Strategy.route().spent.m==0 and not ctx.Strategy.route().spentUnknown)
 assert(not ctx.S.actionPending and not ctx.S.resetSession,'no replacement reset is dispatched')
-print('PASS confirmed E3 to E4 cleanup and actual BOOT resume to POWERS with absent spent balances')
+print('PASS confirmed E3 to E4 cleanup and actual BOOT resume to POWERS with string-zero spent balances')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)

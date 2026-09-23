@@ -83,7 +83,11 @@ return function(ctx)
         local attrs=attributes(data.values)
         local snapshot={source='Workspace/'..data.root.Name..'/Values/Values',time=ctx.now(),raw={},counters={},upgrades={},amounts={},encodings={}}
         for _,name in ipairs(counters) do if integer(attrs[name]) then snapshot.counters[name]=attrs[name] end end
-        for _,name in ipairs(amounts) do if finite(attrs[name]) then snapshot.raw[name]=attrs[name] end end
+        snapshot.reportRaw={}
+        for _,name in ipairs(amounts) do
+            snapshot.reportRaw[name]=attrs[name]
+            if finite(attrs[name]) then snapshot.raw[name]=attrs[name] end
+        end
         local upgrades=attributes(child(child(data.root,'Values'),'Upgrades'))
         for name,value in pairs(upgrades) do if integer(value) then snapshot.upgrades[name]=value end end
         local gate=table.concat({tostring(attrs.Evolution),tostring(attrs.Ascension),tostring(attrs.Rebirths)},'|')
@@ -123,7 +127,8 @@ return function(ctx)
         local out={'[SL STATE] '..snapshot.source}
         for _,name in ipairs(counters) do out[#out+1]=name..'='..tostring(snapshot.counters[name]) end
         for _,name in ipairs(amounts) do
-            out[#out+1]=name..' raw='..tostring(snapshot.raw[name])..'; mode='..tostring(snapshot.encodings[name])
+            local raw=snapshot.reportRaw[name]
+            out[#out+1]=name..' raw='..(type(raw)=='string' and string.format('%q',raw) or tostring(raw))..' type='..type(raw)..'; mode='..tostring(snapshot.encodings[name])
                 ..'; decoded='..ctx.BN.format(snapshot.amounts[name])
         end
         local names={};for name in pairs(snapshot.upgrades)do names[#names+1]=name end;table.sort(names)

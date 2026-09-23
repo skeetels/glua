@@ -4055,7 +4055,11 @@ return function(ctx)
         local attrs=attributes(data.values)
         local snapshot={source='Workspace/'..data.root.Name..'/Values/Values',time=ctx.now(),raw={},counters={},upgrades={},amounts={},encodings={}}
         for _,name in ipairs(counters) do if integer(attrs[name]) then snapshot.counters[name]=attrs[name] end end
-        for _,name in ipairs(amounts) do if finite(attrs[name]) then snapshot.raw[name]=attrs[name] end end
+        snapshot.reportRaw={}
+        for _,name in ipairs(amounts) do
+            snapshot.reportRaw[name]=attrs[name]
+            if finite(attrs[name]) then snapshot.raw[name]=attrs[name] end
+        end
         local upgrades=attributes(child(child(data.root,'Values'),'Upgrades'))
         for name,value in pairs(upgrades) do if integer(value) then snapshot.upgrades[name]=value end end
         local gate=table.concat({tostring(attrs.Evolution),tostring(attrs.Ascension),tostring(attrs.Rebirths)},'|')
@@ -4095,7 +4099,8 @@ return function(ctx)
         local out={'[SL STATE] '..snapshot.source}
         for _,name in ipairs(counters) do out[#out+1]=name..'='..tostring(snapshot.counters[name]) end
         for _,name in ipairs(amounts) do
-            out[#out+1]=name..' raw='..tostring(snapshot.raw[name])..'; mode='..tostring(snapshot.encodings[name])
+            local raw=snapshot.reportRaw[name]
+            out[#out+1]=name..' raw='..(type(raw)=='string' and string.format('%q',raw) or tostring(raw))..' type='..type(raw)..'; mode='..tostring(snapshot.encodings[name])
                 ..'; decoded='..ctx.BN.format(snapshot.amounts[name])
         end
         local names={};for name in pairs(snapshot.upgrades)do names[#names+1]=name end;table.sort(names)
@@ -5409,6 +5414,7 @@ return function(ctx)
         for _,spec in ipairs({
             {'Balance',340421,914084511},{'Config',19699,154165715},
             {'Modules.Huge',8091,539421471},
+            {'Modules.Tycoon.Component.TycoonValues',1214,285065225},
             {'Modules.Tycoon.Entity.TycoonEarner',5781,1426949448},
             {'Modules.Tycoon.Entity.Client.ClientTycoonEarner',9539,1200172661},
             {'Modules.Tycoon.Component.TycoonIncome',7049,3274092081},
@@ -5452,6 +5458,7 @@ return function(ctx)
         local root=child(own,'Values');local values=child(root,'Values');local levels=child(root,'Upgrades');local powers=child(root,'Powers')
         if not values or not levels or not powers then return nil,'REPLICATED_TABLES_UNAVAILABLE' end
         local cash=attr(values,'Cash');local asc=attr(values,'Ascension') or 0
+        if cash=='0' then cash=-math.huge end -- TycoonValues.GetHugeNumber zero sentinel
         if not number(cash) or not integer(asc) then return nil,'CASH_OR_ASCENSION_UNAVAILABLE' end
         local inversion=child(root,'InversionCards')
         -- InstanceTable.new(name, root, true) uses a detached empty Configuration
@@ -9037,7 +9044,8 @@ return function(ctx)
     end
     function A.wallet()
         local s,why=D.state();if not s then return nil,why end
-        local bank=M.bn(attr(s.values,'Investors'));if not bank then return nil,'INVESTORS_UNAVAILABLE' end
+        local raw=attr(s.values,'Investors')
+        local bank=raw=='0' and {m=0,e=0} or M.bn(raw);if not bank then return nil,'INVESTORS_UNAVAILABLE' end
         return {investors=bank,time=ctx.now()},s
     end
     function A.powers()
@@ -9051,7 +9059,7 @@ return function(ctx)
                 local bonus=name=='UpgradeStack' and ({[0]='+1','+5','+25','+100','max'})[level] or tostring(level)
                 out[#out+1]={source='directPower',name=name,title=data.Title,path='directPower/'..name,
                     level=level,permanent=permanent,price=M.bn(raw),priceLog=raw,priceText=ctx.BN.format(M.bn(raw)),
-                    bonus=bonus,info='',available=raw<=attr(s.values,'Investors'),observedAt=ctx.now(),snapshot=s}
+                    bonus=bonus,info='',available=ctx.BN.cmp(M.bn(raw),wallet.investors)<=0,observedAt=ctx.now(),snapshot=s}
             end
         end
         table.sort(out,function(a,b)
@@ -9239,6 +9247,7 @@ return function(ctx)
         local rs=game:GetService('ReplicatedStorage')
         for _,spec in ipairs({
             {'Modules.Tycoon.Component.TycoonBalances',4280,537675623},
+            {'Modules.Tycoon.Component.TycoonValues',1214,285065225},
             {'Modules.Tycoon.Component.TycoonRebirth',6310,4193420756},
             {'Modules.Tycoon.Component.Client.ClientTycoonRebirth',1232,3294875325},
             {'Modules.Tycoon.Component.TycoonEvolution',6812,3704414728},
@@ -9270,7 +9279,7 @@ return function(ctx)
         local data={snapshot=s}
         for _,key in ipairs({'Cash','CashSpent','Investors','InvestorsSpent'})do
             local raw=attr(s.values,key)
-            if raw==-math.huge then raw=nil end
+            if raw=='0' or raw==-math.huge then raw=nil end -- TycoonValues.GetHugeNumber
             -- GetHugeNumber defaults absent attributes to Huge.zero. Do not
             -- create -infinity and send it through the ordinary BN converter.
             if raw~=nil and not M.bn(raw)then
