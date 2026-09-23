@@ -239,10 +239,15 @@ function __slctx.Driver.perform(button,kind,predicate,options)
     if __slctx.Driver.pressed and __slctx.Driver.pressed.kind=='buyHold' then
         __slctx.Virtual.release();return false,'BUY_HOLD_RELEASE_RECONCILE'
     end
-    if not __slctx.Focus.await() then return false,'PAUSED' end
     if not __slctx.live() then return false,'PAUSED' end
     if __slctx.S.actionPending or __slctx.S.resetChildPending then return false,'PREVIOUS_CALLBACK_PENDING' end
     if not __slctx.usable(button) or __slctx.paid(button) then return false,'BUTTON_UNAVAILABLE' end
+    if not __slctx.Driver.fire and not __slctx.Driver.connections and not __slctx.Driver.virtual then
+        __slctx.status('CHECKING_INPUT','Проверяю клики для выбранного действия через интерфейс.')
+        local ok,passed,why=pcall(__slctx.selfTest)
+        if not ok or not passed then return false,ok and why or tostring(passed)end
+    end
+    if not __slctx.Focus.await() then return false,'PAUSED' end
     local modes=__slctx.candidateModes(button,kind)
     local epoch=__slctx.S.epoch
     if #modes==0 then return false,'NO_BUTTON_HANDLERS: '..__slctx.signalSummary(button) end

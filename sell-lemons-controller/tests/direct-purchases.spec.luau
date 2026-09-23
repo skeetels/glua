@@ -93,12 +93,14 @@ assert(#calls==0 and not c.S.actionPending)
 print('PASS Buy rejection, silence, reset, pending timeout and late cancellation never authorize duplicate requests')
 local c,v,p,l,calls,_,o,r=fixture('ok');p.children.Permanent.attrs.BuyNext=1;v.attrs.BuyNextUses=150
 local q=assert(c.readBuy());assert(not q.available and not c.Strategy.safePurchase(q) and #calls==0)
-p.children.Permanent.attrs.BuyNext=3;o.attrs.Special=true;assert(not c.readBuy())
-o.attrs.Special=nil;local item=c.Powers.read()[1];r.powerUsed=c.BN.new(1,39)
-assert(not c.DirectPurchases.powerPurchase(item) and #calls==0,'cumulative investor retention must survive repeated scans')
+p.children.Permanent.attrs.BuyNext=3;o.attrs.Special=true
+local special=assert(c.readBuy(),'Special disables permanent buying; it does not disable an ordinary cash purchase')
+assert(c.Strategy.safePurchase(special) and #calls==1 and l.attrs.Juicer==true)
+local item=c.Powers.read()[1];r.powerUsed=c.BN.new(1,39)
+assert(not c.DirectPurchases.powerPurchase(item) and #calls==1,'cumulative investor retention must survive repeated scans')
 local c=fixture('silent-power');local item=c.Powers.read()[1]
 assert(not c.DirectPurchases.powerPurchase(item) and not c.Powers.proof(item))
-print('PASS exhausted Buy uses, special purchases, protected investor bank and missing power receipts block dispatch or success')
+print('PASS special cash purchase succeeds; exhausted Buy uses, protected bank and missing receipts retain their guards')
 local c,v,p,l,calls,_,o,r=fixture('ok')
 assert(c.DirectPurchases.refreshEpoch());v.attrs.reject=true
 assert(not c.Strategy.safePurchase(assert(c.readBuy())) and #calls==1 and next(r.blocked))

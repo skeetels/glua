@@ -4,6 +4,7 @@ do local initialize=require('../src/config');setfenv(initialize,mock.env);initia
 do local initialize=require('../src/core/Numeric');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/data/GameBalance');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/core/UpgradeMath');setfenv(initialize,mock.env);initialize(ctx) end
+do local initialize=require('../src/core/PrestigeMath');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/data/Catalogue');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/core/HaloPlanner');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/core/EconomyPlanner');setfenv(initialize,mock.env);initialize(ctx) end
@@ -32,6 +33,7 @@ do local initialize=require('../src/strategy/ResetPlanning');setfenv(initialize,
 do local initialize=require('../src/strategy/Growth');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/strategy/HaloController');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/adapters/DirectPurchases');setfenv(initialize,mock.env);initialize(ctx) end
+do local initialize=require('../src/adapters/DirectPrestige');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/ui/Progress');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/ui/Panel');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/Diagnostics');setfenv(initialize,mock.env);initialize(ctx) end
@@ -52,6 +54,10 @@ assert(type(ctx.API.dataReport())=='string')
 local observations=ctx.API.observations()
 assert(observations.revision==0,'missing GUI data must stay unknown')
 ctx.API.antiIdle(false);assert(ctx.API.antiIdle().enabled==false)
+ctx.selfTest=function()error('direct startup must not require mouse APIs')end
+ctx.API.start();assert(ctx.S.running and not ctx.S.testing)
+ctx.API.pause();assert(not ctx.S.running)
+ctx.API.start();assert(ctx.S.running,'F6 resume must work without another mouse test')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)

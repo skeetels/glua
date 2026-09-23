@@ -123,6 +123,7 @@ end
 
 function __slctx.HaloRun.plan(force)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
+    if h.buyUnavailableReason then return nil end
     if h.resetInFlight or (__slctx.S.resetSession and __slctx.S.resetSession.isReset) then return h.forecast end
     if not force and __slctx.now()-h.lastPlan<__slctx.CONFIG.CataloguePlanSeconds then return h.forecast end
     h.lastPlan=__slctx.now();h.planDirty=false
@@ -285,6 +286,22 @@ function __slctx.HaloRun.peekProgress()
     local h=__slctx.HaloRun.state();local r=__slctx.Strategy.route()
     if isPending() or h.mode=='FINISH' or __slctx.now()<(h.nextPassiveProgressRead or 0) then return end
     h.nextPassiveProgressRead=__slctx.now()+__slctx.CONFIG.PendingProgressReadSeconds
+    if __slctx.CONFIG.DirectPrestige and __slctx.DirectPrestige then
+        local inv=__slctx.readInvestors();local evo=__slctx.readEvolution()
+        if inv then
+            local goal=r.powerGoal
+            if goal and goal.nextBatch and goal.currentBatch~='max' and goal.requiredReward
+                and __slctx.BN.cmp(inv.reward,goal.requiredReward)>=0 then
+                h.powerReviewHint={at=__slctx.now(),goalId=goal.id,reward=inv.reward}
+            end
+        end
+        if evo then
+            r.evo=evo;r.lastEvolutionRead=__slctx.now()
+            __slctx.S.prestige=__slctx.S.prestige or {};__slctx.S.prestige.evo=evo
+            if evo.ready then h.progressReviewHint=true end
+        end
+        return
+    end
     local base=__slctx.paths.investors..'/Body/'
     local signature=__slctx.t(base..'Amount/Quantity')..'|'..__slctx.t(base..'Potential/Quantity')
     if h.passiveInvestorText~=nil and signature~=h.passiveInvestorText
@@ -807,7 +824,7 @@ function __slctx.HaloRun.buy()
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if r.endPurchased or r.completionSeen then __slctx.Strategy.phase('HALO','конец подтверждён');return end
     local ok,why=__slctx.ensureStrip();if not ok then if __slctx.live()then __slctx.pause('BUY_MENU_NOT_READY',tostring(why))end;return end
-    local q=__slctx.readBuy()
+    local q,quoteReason=__slctx.readBuy()
     if __slctx.buyComplete()then
         r.completionSeen=true;__slctx.Strategy.phase('HALO','конец каталога подтверждён интерфейсом');return
     end
@@ -822,8 +839,30 @@ function __slctx.HaloRun.buy()
     end
     if not q or not q.cost then
         h.unknownSince=h.unknownSince or __slctx.now()
-        if __slctx.now()-h.unknownSince>__slctx.CONFIG.UIUnavailableTimeout then __slctx.pause('BUY_QUOTE_UNKNOWN','Цена BUY не прочитана; сброс не используется как исправление.')end
+        if __slctx.CONFIG.DirectPurchases and __slctx.CONFIG.DirectUpgrades then
+            local reason=tostring(quoteReason or 'BUY_PRICE_UNAVAILABLE')
+            if h.buyUnavailableReason~=reason or __slctx.now()>=(h.nextBuyWarning or 0) then
+                __slctx.log('BUY_DATA_WAIT',reason..'; available stand upgrades continue')
+                h.nextBuyWarning=__slctx.now()+5
+            end
+            h.buyUnavailableReason=reason;r.buyQuote=nil;r.buildQuote=nil
+            if h.mode=='FINISH' then __slctx.HaloRun.cancelFinish('BUY_DATA_UNAVAILABLE')end
+            h.forecast=nil;h.economy=nil;h.requiredInvestors=nil
+            __slctx.status('BUY_DATA_WAIT','Buy: '..reason..'; продолжаю доступные улучшения стендов.')
+            if __slctx.canUpgrade() then
+                if r.pass and r.pass.finished then r.pass=nil end
+                __slctx.Strategy.phase('UPGRADE','данные Buy уточняются; стенды читаются независимо')
+            else
+                h.waitUntil=__slctx.now()+1;h.waitReturn='BUY';h.waitCost=nil
+                __slctx.Strategy.phase('WAIT_GROWTH','ожидаю данные базы')
+            end
+            return
+        end
+        if __slctx.now()-h.unknownSince>__slctx.CONFIG.UIUnavailableTimeout then __slctx.pause('BUY_QUOTE_UNKNOWN','Цена BUY не прочитана: '..tostring(quoteReason or 'нет объекта покупки')..'. F7 — подробности.')end
         return
+    end
+    if h.buyUnavailableReason then
+        __slctx.log('BUY_DATA_RECOVERED',q.name);h.buyUnavailableReason=nil;h.nextBuyWarning=nil;h.lastPlan=-math.huge
     end
     h.unknownSince=nil;r.buyQuote=q;__slctx.Strategy.observeBuildQuote(q);__slctx.HaloRun.observeQuote(q);__slctx.HaloRun.plan(false)
     local amount=__slctx.cash();if not amount then return end
@@ -872,6 +911,11 @@ function __slctx.HaloRun.checkpoint()
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if not r.pass or not r.pass.complete then __slctx.Strategy.phase('UPGRADE','заканчиваю текущий проход');return end
     if __slctx.Strategy.stopForBlocked()then return end
+    if h.buyUnavailableReason then
+        h.waitUntil=__slctx.now()+((r.pass.purchases or 0)>0 and .1 or 1)
+        h.waitReturn='BUY';h.waitCost=nil
+        __slctx.Strategy.phase('WAIT_GROWTH','проход стендов завершён; повторное чтение Buy');return
+    end
     __slctx.HaloRun.plan(true)
     if h.mode=='FINISH'then __slctx.Strategy.phase('BUY','FINISH: бюджет сохранён для каталога');return end
     local p=r.pass
@@ -883,6 +927,9 @@ function __slctx.HaloRun.checkpoint()
         reviewAt=math.max(reviewAt,reviewedAt+__slctx.CONFIG.PreparationNoChangeBackoffSeconds)
     end
     if __slctx.now()<reviewAt then
+        if __slctx.CONFIG.DirectUpgrades and (p.purchases or 0)>0 then
+            __slctx.Strategy.phase('BUY','прямой проход подтверждён; следующая покупка без задержки меню');return
+        end
         h.waitUntil=math.min(reviewAt,__slctx.now()+__slctx.CONFIG.PreparationIdleObservationSeconds)
         -- Keep the open Manage menu while an empty pass waits for income. A
         -- newly funded real BUY quote wakes this wait and is refreshed before input.
@@ -904,6 +951,7 @@ end
 -- Legacy periodic economic reviews are not part of 3.0's scheduler.
 function __slctx.Strategy.maybeBuyReview()return false end
 function __slctx.Strategy.maybeCapabilityReview(cards)
+    if __slctx.HaloRun.state().buyUnavailableReason then return false end
     if __slctx.HaloRun.reviewDue(__slctx.Strategy.route().buyQuote)then __slctx.HaloRun.requestReview('UPGRADE');return true end
     return false
 end
@@ -923,7 +971,9 @@ function __slctx.HaloRun.objectiveWatch()
     if __slctx.now()<(r.evolutionReserveRetryAt or 0)or isPending()then return false end
     local nextBuy=__slctx.readBuy();local amount=__slctx.cash()
     if nextBuy and __slctx.Planner.isTerminalName(nextBuy.name) and nextBuy.cost and amount and __slctx.BN.cmp(amount,nextBuy.cost)>=0 then return false end
-    local changed=__slctx.t(__slctx.paths.evolution..'/Body/Progress');local pct=__slctx.Core.percent(changed)
+    local direct=__slctx.CONFIG.DirectPrestige and __slctx.DirectPrestige
+    local changed=direct and tostring(r.evo.pct) or __slctx.t(__slctx.paths.evolution..'/Body/Progress')
+    local pct=direct and r.evo.pct or __slctx.Core.percent(changed)
     local near=pct and pct>=99.99 and changed~=h.lastObjectiveText
     h.lastObjectiveText=changed
     -- A low-frequency safety observation remains; it is NOT permission to rebirth.
@@ -990,7 +1040,9 @@ function __slctx.HaloRun.formatDuration(value)
 end
 
 function __slctx.HaloRun.step()
-    if not __slctx.live()or not __slctx.Focus.await()then return end
+    if not __slctx.live()then return end
+    local direct=__slctx.CONFIG.DirectUpgrades and __slctx.CONFIG.DirectPurchases and __slctx.CONFIG.DirectPrestige
+    if not direct and not __slctx.Focus.await()then return end
     if isPending()then return end
     local notice=__slctx.ResetConfirm.staircaseNotice();if notice then __slctx.ResetConfirm.dismissNotice(notice);return end
     __slctx.Strategy.sampleIncome();__slctx.HaloRun.peekProgress();__slctx.Strategy.diagnosticSample()

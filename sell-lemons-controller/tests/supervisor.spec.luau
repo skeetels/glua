@@ -51,4 +51,8 @@ test('idle input excludes economic step',function()
     local c,r,h=make();c.AntiIdle={pending=true};c.S.resetEnabled=true
     c.step();assert(r.phase=='UPGRADE' and c.Supervisor.steps==0)
 end)
+test('unknown Buy frontier does not preempt available upgrades with a reset review',function()
+    local c,r,h=make();c.S.resetEnabled=true;h.buyUnavailableReason='BUY_NOT_REPLICATED_OR_ENABLED'
+    c.step();assert(r.phase=='UPGRADE' and c.Supervisor.reviews==0)
+end)
 print('PASS '..count..' supervisor scenarios')

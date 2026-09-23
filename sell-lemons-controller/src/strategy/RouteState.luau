@@ -209,7 +209,7 @@ function __slctx.Strategy.afterReset(kind,before)
     if kind=='halo' then r.cycleStarts.evolve=nil;r.cycleStats.evolve=nil end
     if kind=='rebirth' then
         -- Rebirth keeps powers and evolution; do not re-open either menu to rediscover them.
-        local after=__slctx.BN.parse(__slctx.t(__slctx.paths.investors..'/Body/Amount/Quantity'))
+        local after=before.afterInvestors or __slctx.BN.parse(__slctx.t(__slctx.paths.investors..'/Body/Amount/Quantity'))
         __slctx.Strategy.creditRebirth(before.investors,after)
         r.originInvestors=after;r.latestInvestors=nil
         r.powerPurchasePlan=r.resetPowerPlan;r.capabilityPending=r.resetPowerPlan;r.resetPowerPlan=nil

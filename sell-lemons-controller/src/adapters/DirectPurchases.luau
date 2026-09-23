@@ -141,7 +141,8 @@ return function(ctx)
             if not purchased(s,key) then
                 all=false;local o=map[key]
                 if o and o:IsDescendantOf(s.own) and attr(o,'Enabled')==true then
-                    if attr(o,'Special') then return nil,'SPECIAL_PURCHASE_NOT_SUPPORTED' end
+                    -- ClientTycoonPurchase.TryPurchaseAsync forces permanent=false
+                    -- for Special. Ordinary cash purchases use the same remote.
                     local raw=ctx.GameBalance.PurchasePrices[key]
                     local remote=child(o,'Purchase')
                     if type(raw)~='number' or not remote or not remote:IsA('RemoteFunction') then return nil,'BUY_SCHEMA_UNKNOWN '..key end

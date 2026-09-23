@@ -1,10 +1,11 @@
 {
-  "version": "4.0.5-dev",
+  "version": "4.0.6-dev",
   "entry": [
     "src/config.luau",
     "src/core/Numeric.luau",
     "src/data/GameBalance.luau",
     "src/core/UpgradeMath.luau",
+    "src/core/PrestigeMath.luau",
     "src/data/Catalogue.luau",
     "src/core/HaloPlanner.luau",
     "src/core/EconomyPlanner.luau",
@@ -33,6 +34,7 @@
     "src/strategy/Growth.luau",
     "src/strategy/HaloController.luau",
     "src/adapters/DirectPurchases.luau",
+    "src/adapters/DirectPrestige.luau",
     "src/ui/Progress.luau",
     "src/ui/Panel.luau",
     "src/runtime/Diagnostics.luau",

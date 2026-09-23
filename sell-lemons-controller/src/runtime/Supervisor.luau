@@ -38,7 +38,7 @@ return function(ctx)
         local age=ctx.now()-(h.lastReview or ctx.now())
         local pending=s.actionPending or s.resetChildPending or s.resetSession or s.buyHold
         local enabled=s.resetEnabled and (ctx.CONFIG.AutoRebirth or ctx.CONFIG.AutoEvolution)
-        if ctx.RecoveryPolicy.reviewDue(age,r.phase,h.mode,pending,r.recovery,enabled)
+        if not h.buyUnavailableReason and ctx.RecoveryPolicy.reviewDue(age,r.phase,h.mode,pending,r.recovery,enabled)
             and ctx.now()>=(controller.nextReview or 0) then
             controller.nextReview=ctx.now()+45;controller.reviews=controller.reviews+1
             ctx.HaloRun.requestReview(r.phase=='UPGRADE' and 'UPGRADE' or 'BUY')
@@ -58,10 +58,12 @@ return function(ctx)
     end
     local oldReport=ctx.API.report
     ctx.API.report=function()
+        local ok,direct=pcall(ctx.API.directReport or function()return ''end)
         return oldReport()..'\n\nController 4.0 / observations='..ctx.Observer.store.revision
             ..' / refreshes='..ctx.Observer.refreshes..' / cache hits='..ctx.Observer.hits
             ..' / recovery resumes='..controller.recoveries..' / timed reviews='..controller.reviews
             ..'\nTransport: direct stands='..tostring(ctx.CONFIG.DirectUpgrades)..'; direct Powers/Buy='..tostring(ctx.CONFIG.DirectPurchases)
-            ..'; reset readiness and execution still use menus. Parallel stand batches require live acceptance.'
+            ..'; direct prestige='..tostring(ctx.CONFIG.DirectPrestige)..'; evolution/Halo execution retains GUI.'
+            ..'\n'..(ok and direct or 'Direct report failed: '..tostring(direct))
     end
 end

@@ -35,9 +35,10 @@ function __slctx.Focus.changed(focused)
     __slctx.S.windowFocused=focused
     if not focused then
         __slctx.S.backgroundVerified=false;__slctx.S.backgroundTried=false;__slctx.S.backgroundBlocked=false;__slctx.S.nextBackgroundProbe=0
-        __slctx.S.focusPauseAt=__slctx.S.focusPauseAt or __slctx.now()
+        local direct=__slctx.CONFIG.DirectUpgrades and __slctx.CONFIG.DirectPurchases and __slctx.CONFIG.DirectPrestige
+        if not direct then __slctx.S.focusPauseAt=__slctx.S.focusPauseAt or __slctx.now()end
         __slctx.Virtual.release()
-        if __slctx.S.running then __slctx.log('FOCUS_AWAY','Route retained; background probe or automatic focus wait') end
+        if __slctx.S.running then __slctx.log('FOCUS_AWAY',direct and 'Direct route continues; GUI actions retain focus checks' or 'Route retained; background probe or automatic focus wait') end
     else
         __slctx.S.backgroundVerified=false;__slctx.S.backgroundTried=false;__slctx.S.backgroundBlocked=false;__slctx.S.nextBackgroundProbe=0
         if __slctx.S.running then __slctx.log('FOCUS_RETURNED','Resume current route, not BOOT; revalidate next action') end
@@ -57,6 +58,7 @@ function __slctx.Focus.await(epoch)
     if not __slctx.live(epoch) then return false,0 end
     if not __slctx.Driver.virtual then return true,0 end
     if __slctx.S.windowFocused~=false then __slctx.Focus.adjustTimers();return true,0 end
+    if not __slctx.S.backgroundVerified then __slctx.S.focusPauseAt=__slctx.S.focusPauseAt or __slctx.now()end
     while __slctx.live(epoch) and __slctx.S.windowFocused==false and not __slctx.S.backgroundVerified do
         if __slctx.CONFIG.BackgroundMode=='Probe' and (not __slctx.S.backgroundTried or __slctx.now()>=(__slctx.S.nextBackgroundProbe or 0)) and not __slctx.S.backgroundProbing then
             __slctx.S.backgroundTried=true;__slctx.S.backgroundProbing=true;__slctx.S.nextBackgroundProbe=__slctx.now()+__slctx.CONFIG.BackgroundRetrySeconds

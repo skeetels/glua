@@ -1,7 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 function __slctx.API.report()
-    local report={'SELL LEMONS CONTROLLER 4.0 DEV / 3.3.3 ECONOMY BASELINE','Place='..game.PlaceId..'; version='..game.PlaceVersion,
+    local report={'SELL LEMONS CONTROLLER 4.0.6 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
         'Status='..__slctx.S.code..' | '..__slctx.S.status,'Cash='..__slctx.t(__slctx.paths.balance),
         'Last error='..__slctx.S.lastError,'firesignal tested='..tostring(__slctx.Driver.fire~=nil),
         'getconnections tested='..tostring(__slctx.Driver.connections~=nil),
@@ -11,7 +11,7 @@ function __slctx.API.report()
         'Executor='..__slctx.Driver.host,
         'Tablet='..tostring(__slctx.S.tablet and __slctx.S.tablet.owned),
         'Rate estimate='..__slctx.BN.format(__slctx.Strategy.rate()),
-        'The log contains UI observations; not a server-side verification.',
+        'Direct receipts verify replicated state; GUI observations and forecasts are labeled separately.',
         'Counts buy='..__slctx.S.counts.buy..'; upgrade='..__slctx.S.counts.upgrade..'; rebirth='..__slctx.S.counts.rebirth..'; evolve='..__slctx.S.counts.evolve..'; halo='..__slctx.S.counts.halo,
         'Poll='..__slctx.CONFIG.ConfirmationPollSeconds..'; scan='..__slctx.CONFIG.ConfirmScanSeconds..'; input='..__slctx.CONFIG.RequestedClickInterval}
     local r=__slctx.Strategy.route()
@@ -93,7 +93,7 @@ function __slctx.API.report()
         ..'; validations='..tostring(ri and ri.validations)..'; economicRevision='..tostring(r.economicRevision or 0)
     report[#report+1]='RESET_EXECUTION stage='..tostring(rx and rx.stage)..'; reason='..tostring(rx and rx.reason)
         ..'; guard='..tostring(r.lastResetGuardReason)..'; no reset inferred from a planner recommendation'
-    report[#report+1]='--- ADAPTER OBSERVATIONS (active controller 3.3.3) ---'
+    report[#report+1]='--- ADAPTER OBSERVATIONS ---'
     report[#report+1]='SCHEMA=28; restore metric=full observed frontier; parity is a separate lock only'
     report[#report+1]='PARITY_SECONDS='..tostring(r.paritySeconds)..'; FULL_LAYOUT_SECONDS='..tostring(r.fullLayoutSeconds)
     report[#report+1]='REWARD_CURVE='..tostring(r.rewardCurve and r.rewardCurve.quality or r.rewardCurveReason)
@@ -129,7 +129,7 @@ function __slctx.API.report()
     local base=__slctx.previousReport30();local h=__slctx.HaloRun.state();local f=h.forecast;local m=h.book.model
     local text,fraction,eta,progress=__slctx.HaloRun.progress()
     local economic=progress.economy or {}
-    local out={ '--- HALO ROUTE ECONOMY 3.3.3 ---',
+    local out={ '--- HALO ROUTE ECONOMY 4.0.6 ---',
         'HALO_MODE='..h.mode..'; halo='..tostring(h.book.halo)..'; evolution='..tostring(h.book.evolution),
         'HALO_READINESS fraction='..tostring(fraction)..'; type=route-income-capacity; bar is explicitly logarithmic, NOT percent of elapsed time',
         'REQUIRED_INCOME='..__slctx.BN.format(economic.requiredRate)..'; CURRENT_INCOME='..__slctx.BN.format(economic.currentRate)

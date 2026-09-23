@@ -128,7 +128,7 @@ return function(ctx)
         end
         local names={};for name in pairs(snapshot.upgrades)do names[#names+1]=name end;table.sort(names)
         for _,name in ipairs(names)do out[#out+1]='Upgrade '..name..'='..snapshot.upgrades[name]end
-        out[#out+1]='Pending rebirth reward and evolution readiness still require GUI evidence.'
+        out[#out+1]=ctx.CONFIG.DirectPrestige and 'Prestige calculations use the separately verified DirectPrestige adapter; details below.' or 'Pending rebirth reward and evolution readiness still require GUI evidence.'
         return table.concat(out,'\n')
     end
 end

@@ -1,24 +1,30 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
-function __slctx.API.pause() __slctx.pause('PAUSED','РџР°СѓР·Р°. РЈР¶Рµ РѕС‚РїСЂР°РІР»РµРЅРЅРѕРµ РґРµР№СЃС‚РІРёРµ РјРѕР¶РµС‚ Р·Р°РІРµСЂС€РёС‚СЊСЃСЏ. F6 вЂ” РїСЂРѕРґРѕР»Р¶РёС‚СЊ.') end
+function __slctx.API.pause() __slctx.pause('PAUSED','Пауза. Уже отправленное действие может завершиться. F6 — продолжить.') end
 function __slctx.API.start()
     if __slctx.S.unloaded or __slctx.S.running or __slctx.S.testing then return end
     if __slctx.S.actionPending or __slctx.S.resetChildPending or __slctx.S.resetSession then
-        __slctx.status('PREVIOUS_CALLBACK_PENDING','РџСЂРµРґС‹РґСѓС‰РёР№ РѕР±СЂР°Р±РѕС‚С‡РёРє РµС‰С‘ РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ. Р”РѕР¶РґРёСЃСЊ РµРіРѕ Р·Р°РІРµСЂС€РµРЅРёСЏ РїРµСЂРµРґ РЅРѕРІС‹Рј Р·Р°РїСѓСЃРєРѕРј.')
+        __slctx.status('PREVIOUS_CALLBACK_PENDING','Предыдущий обработчик ещё выполняется. Дождись его завершения перед новым запуском.')
         return
     end
     __slctx.S.testing=true
     local testEpoch=__slctx.S.epoch
-    __slctx.status('CHECKING_INPUT','РџСЂРѕРІРµСЂРєР° РІРІРѕРґР° РЅР° РѕС‚РґРµР»СЊРЅРѕР№ С‚РµСЃС‚РѕРІРѕР№ РєРЅРѕРїРєРµ. РџРѕРєСѓРїРєРё Рё СЃР±СЂРѕСЃС‹ РЅРµ РІС‹РїРѕР»РЅСЏСЋС‚СЃСЏ.')
-    local ok,passed,code=pcall(__slctx.selfTest)
+    local direct=__slctx.CONFIG.DirectUpgrades and __slctx.CONFIG.DirectPurchases and __slctx.CONFIG.DirectPrestige
+    local ok,passed,code=true,true,'DIRECT_INPUT_NOT_REQUIRED'
+    if direct then
+        __slctx.log('DIRECT_START','GUI input test deferred until a GUI action is needed')
+    else
+        __slctx.status('CHECKING_INPUT','Проверка ввода на отдельной тестовой кнопке. Покупки и сбросы не выполняются.')
+        ok,passed,code=pcall(__slctx.selfTest)
+    end
     __slctx.S.testing=false
     if __slctx.S.unloaded or __slctx.S.epoch~=testEpoch then return end
-    if not ok then __slctx.pause('INPUT_TEST_ERROR','РћС€РёР±РєР° РїСЂРѕРІРµСЂРєРё: '..tostring(passed));return end
+    if not ok then __slctx.pause('INPUT_TEST_ERROR','Ошибка проверки: '..tostring(passed));return end
     if not passed then
         if code=='INPUT_API_MISSING' then
-            __slctx.pause(code,'РќРµ РЅР°Р№РґРµРЅС‹ РґРѕСЃС‚СѓРїРЅС‹Рµ API РєРЅРѕРїРѕРє РёР»Рё РІРёСЂС‚СѓР°Р»СЊРЅРѕРіРѕ РІРІРѕРґР°. РџРѕРґСЂРѕР±РЅРѕСЃС‚Рё РІ В«Р–СѓСЂРЅР°Р»В».')
+            __slctx.pause(code,'Не найдены доступные API кнопок или виртуального ввода. Подробности в «Журнал».')
         else
-            __slctx.pause(code or 'INPUT_API_TEST_FAILED','РўРµСЃС‚РѕРІР°СЏ РєРЅРѕРїРєР° РЅРµ СЃСЂР°Р±РѕС‚Р°Р»Р° РЅРё С‡РµСЂРµР· РѕР±СЂР°Р±РѕС‚С‡РёРєРё, РЅРё С‡РµСЂРµР· РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ РІРІРѕРґ. РћС‚РєСЂРѕР№ Roblox РїРѕРІРµСЂС… РґСЂСѓРіРёС… РѕРєРѕРЅ Рё СЃРјРѕС‚СЂРё В«Р–СѓСЂРЅР°Р»В».')
+            __slctx.pause(code or 'INPUT_API_TEST_FAILED','Тестовая кнопка не сработала ни через обработчики, ни через виртуальный ввод. Открой Roblox поверх других окон и смотри «Журнал».')
         end
         return
     end
@@ -31,7 +37,7 @@ function __slctx.API.start()
     __slctx.S.route=__slctx.Strategy.new()
     if old then __slctx.S.route.spent=old.spent;__slctx.S.route.spentUnknown=old.spentUnknown;__slctx.S.route.models=old.models;__slctx.S.route.powerBase=old.powerBase;__slctx.S.route.powerUsed=old.powerUsed or __slctx.BN.new(0);__slctx.S.route.powerSkipped=old.powerSkipped or {};__slctx.S.route.blocked=old.blocked or {} end
     if old then
-        for _,key in ipairs({'timings','rebuildEstimate','powerBank','powerUnresolved','powerQuotes','directEpoch',
+        for _,key in ipairs({'timings','rebuildEstimate','powerBank','powerUnresolved','powerQuotes','directEpoch','directResetUnresolved',
             'rebuildProfile','lastFullPass','failedTierHints','fullPassCount','powerPurchasePlan','capabilityPending',
             'recovery','rebuildLowerBound','previousHalo','savingsBudget','schema28','objectiveHistory','halo30','lastHaloEconomy32'}) do
             __slctx.S.route[key]=old[key]
@@ -60,7 +66,7 @@ function __slctx.API.start()
     __slctx.S.lastCatalog=-math.huge;__slctx.S.catalogDirty=true;__slctx.S.incomeAttempts={};__slctx.S.nextIncomeAt=0;__slctx.S.upgradeVisited={} 
     __slctx.S.episode=nil;__slctx.S.goal=nil;__slctx.S.stallStart=nil;__slctx.S.rate:reset();__slctx.S.runStart=__slctx.now()
     if __slctx.S.cashFlow then __slctx.S.cashFlow:reset() end
-    __slctx.S.lastError='';__slctx.status('STARTING','Р—Р°РїСѓСЃРє. РџСЂРѕРІРµСЂРєР° РёРЅС‚РµСЂС„РµР№СЃР°вЂ¦');__slctx.log('START','single worker; automatic resets='..tostring(__slctx.S.resetEnabled))
+    __slctx.S.lastError='';__slctx.status('STARTING','Запуск. Проверка интерфейса…');__slctx.log('START','single worker; automatic resets='..tostring(__slctx.S.resetEnabled))
 end
 function __slctx.API.unload()
     if __slctx.S.unloaded then return end
@@ -71,7 +77,7 @@ function __slctx.API.unload()
     __slctx.Virtual.dispose()
     for _,c in ipairs(__slctx.S.connections) do pcall(c.Disconnect,c) end
     if __slctx.panel then __slctx.panel:Destroy() end
-    __slctx.log('UNLOADED','РќРѕРІС‹Рµ РґРµР№СЃС‚РІРёСЏ РѕСЃС‚Р°РЅРѕРІР»РµРЅС‹.')
+    __slctx.log('UNLOADED','Новые действия остановлены.')
 end
 function __slctx.API.toggle()
     if __slctx.now()-(__slctx.S.lastToggleAt or -math.huge)<0.6 then return end
@@ -80,7 +86,7 @@ function __slctx.API.toggle()
 end
 __slctx.S.connections[#__slctx.S.connections+1]=__slctx.startButton.Activated:Connect(function(input) __slctx.S.lastInput=input or __slctx.S.lastInput;__slctx.API.toggle() end)
 __slctx.S.connections[#__slctx.S.connections+1]=__slctx.resetsButton.Activated:Connect(function()
-    __slctx.S.resetEnabled=not __slctx.S.resetEnabled;__slctx.resetsButton.Text=__slctx.S.resetEnabled and 'РЎР±СЂРѕСЃС‹: Р’РљР›' or 'РЎР±СЂРѕСЃС‹: Р’Р«РљР›'
+    __slctx.S.resetEnabled=not __slctx.S.resetEnabled;__slctx.resetsButton.Text=__slctx.S.resetEnabled and 'Сбросы: ВКЛ' or 'Сбросы: ВЫКЛ'
     __slctx.log('RESET_SWITCH',tostring(__slctx.S.resetEnabled))
 end)
 __slctx.S.connections[#__slctx.S.connections+1]=__slctx.logButton.Activated:Connect(__slctx.API.copyLog)
@@ -107,9 +113,11 @@ for eventName,focused in pairs({WindowFocused=true,WindowFocusReleased=false}) d
 end
 __slctx.S.panel=__slctx.panel;__slctx.S.panelFrame=__slctx.frame;__slctx.S.panelVisibilityVersion=0
 __slctx.panel.Parent=__slctx.gui
-__slctx.log('LOADED','v4.0.5-dev; direct stand upgrades, Powers and ordinary Buy; reset menus remain; full live acceptance pending.')
+__slctx.log('LOADED','v4.0.6-dev; direct upgrades/Powers/Buy/rebirth; replicated prestige reads; evolution and Halo use GUI only for execution.')
 if __slctx.CONFIG.DirectUpgrades then
-    for line in __slctx.API.directReport():gmatch('[^\n]+')do print(line)end
+    local ok,report=pcall(__slctx.API.directReport)
+    if ok then for line in report:gmatch('[^\n]+')do print(line)end
+    else __slctx.log('INITIAL_REPORT_ERROR',tostring(report))end
 end
 task.spawn(function()
     while not __slctx.S.unloaded do
@@ -125,7 +133,7 @@ task.spawn(function()
             if not ok then __slctx.pause('RUNTIME_ERROR',err) end
         end
         local phase=__slctx.S.route and __slctx.S.route.phase
-        local fastPhase=phase=='BUY' or phase=='UPGRADE' or phase=='REBUILD'
+        local fastPhase=phase=='BUY' or phase=='UPGRADE' or phase=='REBUILD' or (__slctx.CONFIG.DirectUpgrades and phase=='CHECKPOINT')
         -- Receipt polling has already yielded. Avoid paying for a second frame;
         -- a synchronous/no-action iteration still yields exactly as before.
         if not (__slctx.S.running and fastPhase and __slctx.CONFIG.RequestedClickInterval<=0
@@ -138,16 +146,16 @@ task.spawn(function()
     while not __slctx.S.unloaded do
         __slctx.statusLabel.Text=__slctx.S.code..'\n'..__slctx.S.status
         local p=__slctx.S.prestige
-        __slctx.economyLabel.Text='Р‘Р°Р»Р°РЅСЃ: '..__slctx.t(__slctx.paths.balance)..' | Р”РѕС…РѕРґ/СЃ в‰€ '..__slctx.BN.format(__slctx.Strategy.rate())
-            ..'\nР­РІРѕР»СЋС†РёСЏ: '..tostring(p and p.evo and p.evo.index or '?')
-            ..' | Halo: '..tostring(p and p.halo and p.halo.amount or '?')..' | Р—Р°РїР°СЃ: '..__slctx.CONFIG.TabletReserve
+        __slctx.economyLabel.Text='Баланс: '..__slctx.t(__slctx.paths.balance)..' | Доход/с ≈ '..__slctx.BN.format(__slctx.Strategy.rate())
+            ..'\nЭволюция: '..tostring(p and p.evo and p.evo.index or '?')
+            ..' | Halo: '..tostring(p and p.halo and p.halo.amount or '?')..' | Запас: '..__slctx.CONFIG.TabletReserve
         local route=__slctx.Strategy.route()
         local evolutionText,evolutionFraction,scenarioText=__slctx.HaloRun.progress()
         __slctx.evolutionLabel.Text=evolutionText;__slctx.evolutionFill.Size=UDim2.fromScale(evolutionFraction,1)
         __slctx.routeLabel.Text=scenarioText
-        __slctx.countsLabel.Text=string.format('РџРѕРґС‚РІРµСЂР¶РґРµРЅРѕ: РїРѕРєСѓРїРѕРє %d, СѓР»СѓС‡С€РµРЅРёР№ %d\nRebirth %d | Evolution %d | Halo %d | Powers %d',
+        __slctx.countsLabel.Text=string.format('Подтверждено: покупок %d, улучшений %d\nRebirth %d | Evolution %d | Halo %d | Powers %d',
             __slctx.S.counts.buy,__slctx.S.counts.upgrade,__slctx.S.counts.rebirth,__slctx.S.counts.evolve,__slctx.S.counts.halo,__slctx.S.counts.power or 0)
-        __slctx.startButton.Text=__slctx.S.testing and 'РћС‚РјРµРЅР° (F6)' or (__slctx.S.running and 'РџР°СѓР·Р° (F6)' or 'Р—Р°РїСѓСЃРє (F6)')
+        __slctx.startButton.Text=__slctx.S.testing and 'Отмена (F6)' or (__slctx.S.running and 'Пауза (F6)' or 'Запуск (F6)')
         task.wait(0.2)
     end
 end)

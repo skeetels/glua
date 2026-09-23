@@ -90,4 +90,31 @@ test('uncertain rebirth scenario does not suppress a ready evolution',function()
     h.economy.rebirth=h.economy
     assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=5},nil,true,{})=='EVOLVE')
 end)
-print('PASS '..n..' finish forecast regression groups')
+test('successful direct pass continues immediately; empty pass still waits and overdue review wins',function()
+    local c,s,r,h=fixture();c.Strategy.stopForBlocked=function()return false end
+    c.HaloRun.plan=function()end;h.lastReview=s.time;h.nextReview=s.time+10
+    r.pass={complete=true,finished=true,purchases=4};r.phase='CHECKPOINT'
+    c.HaloRun.checkpoint();assert(r.phase=='BUY' and not h.waitUntil,'successful direct pass must not add the old 0.75 second GUI delay')
+    r.pass.purchases=0;c.HaloRun.checkpoint();assert(r.phase=='WAIT_GROWTH' and h.waitUntil>s.time)
+    r.pass.purchases=4;s.time=s.time+40;c.HaloRun.checkpoint();assert(r.phase=='CAPABILITY','speedup must preserve due economic reviews')
+end)
+test('missing Buy quote keeps available stands running and returns to Buy after a bounded wait',function()
+    local c,s,r,h,B=fixture();local reason='BUY_NOT_REPLICATED_OR_ENABLED'
+    c.ensureStrip=function()return true end;c.readBuy=function()return nil,reason end
+    c.canUpgrade=function()return true end;c.status=function()end
+    c.pause=function()error('a missing Buy quote must not pause independent stand upgrades')end
+    c.Strategy.stopForBlocked=function()return false end
+    r.buyQuote={id='old',cost=B.new(1)};r.pass={finished=true,complete=true,purchases=2}
+    c.HaloRun.buy();assert(r.phase=='UPGRADE' and r.buyQuote==nil and r.pass==nil)
+    assert(h.buyUnavailableReason==reason and s.resets==0)
+    s.time=s.time+c.CONFIG.UIUnavailableTimeout+1;c.HaloRun.buy();assert(r.phase=='UPGRADE')
+    assert(c.HaloRun.plan(true)==nil and h.mode=='PREPARE','missing frontier cannot certify FINISH')
+    assert(not c.Strategy.maybeCapabilityReview({}),'no reset review inferred from a missing Buy quote')
+    r.pass={finished=true,complete=true,purchases=2};c.HaloRun.checkpoint()
+    assert(r.phase=='WAIT_GROWTH' and h.waitReturn=='BUY' and h.waitUntil>s.time)
+    s.time=h.waitUntil;c.HaloRun.wait();assert(r.phase=='BUY')
+    c.readBuy=function()return {id=2,name='The End',cost=B.new(40),available=true}end
+    c.HaloRun.plan=function()end;c.HaloRun.observeQuote=function()end
+    c.HaloRun.buy();assert(not h.buyUnavailableReason and r.buyQuote.id==2)
+end)
+print('PASS '..n..' forecast and scheduling regression groups')

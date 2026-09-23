@@ -18,6 +18,7 @@ return function(__slctx)
 __slctx.CONFIG = {
     DirectUpgrades = true, -- Verified stand Upgrade(count); no Manage navigation or game-module require.
     DirectPurchases = true, -- Powers and ordinary Buy use current replicated state and verified remotes.
+    DirectPrestige = true, -- Hidden reset data and ordinary rebirth; evolution/Halo execution retains GUI.
     -- 3.0 catalogue objective. Expected donor values are metadata, not extra multipliers.
     ExpectedInvestorBonus = 0.08,
     ExpectedTimeMultiplier = 16, -- Display/decomposition metadata only. Observed income ALREADY includes this.
