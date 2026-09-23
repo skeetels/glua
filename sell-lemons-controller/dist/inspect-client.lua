@@ -3,7 +3,7 @@ local inspect=(function()
 -- Read client handlers as text. Never require them or invoke any game remote.
 return function()
     local function log(s)print('[SL CLIENT] '..s)end
-    log('START v2; client text/bytecode only; no purchases or hooks')
+    log('START v3; client text/bytecode only; no purchases or hooks')
     assert(game.PlaceId==79268393072444,'Run in Sell Lemons')
     local env=type(getgenv)=='function' and getgenv() or _G
     local decode=type(env.decompile)=='function' and env.decompile or decompile
@@ -34,7 +34,8 @@ return function()
     end
     local function priority(name)
         local n=name:lower()
-        local selected={clienttycoonupgrades=0,tycoonupgrades=1,uimanagetileearner=2,remotetable=3,clienttycoonincome=4}
+        -- Follow the dependencies found in UIManageTileEarner's captured bytecode.
+        local selected={clienttycoonearner=0,tycoonearner=1,remoterequest=2,localtycoonservice=3,tycoon=4}
         if selected[n] then return selected[n] end
         if n:find('upgrade',1,true) then return 5 end
         if n:find('manage',1,true) then return 6 end
