@@ -1,1 +1,1 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/skeetels/glua/main/sell-lemons-controller/dist/controller.lua"))()
+local s=type(request)=="function" and request or http_request;assert(type(s)=="function","HTTP request unavailable");local r=s({Url="https://raw.githubusercontent.com/skeetels/glua/main/sell-lemons-controller/dist/controller.lua",Method="GET"});assert(type(r)=="table" and tonumber(r.StatusCode or r.Status)==200,"GitHub HTTP request failed");local f,e=loadstring(r.Body);assert(type(f)=="function",tostring(e));f()

@@ -5,16 +5,18 @@ Source: supplied Sell Lemons Autofarm 3.3.3. Migrated top-level lexical bindings
 Passed:
 
 - Deterministic `tools/build.py --check` against source/integrity manifest.
-- Luau bytecode compilation of 41 files: 35 controller components, one standalone capture source, two loaders, controller and two standalone diagnostics.
+- Luau bytecode compilation of 43 files: 35 controller components, two standalone diagnostic sources, two loaders, controller and three standalone diagnostics.
 - 12 numeric/catalogue/observation/recovery-policy scenarios.
 - 8 supervisor scenarios, including repeated +1 work requesting a timely review without abandoning a partial pass, cancellation of recovery by manual pause, and no auto-resume during ambiguous transactions.
 - Full component initialization, diagnostic report, missing-data handling, idempotent unload, and listener cleanup in a minimal mock engine.
 - 3 AntiIdle cleanup/exclusion fixtures, including camera removal between press and release.
 - 4 loader fixtures: success, HTTP 401, HTTP 404 and cancellation during a request. The mock asserts the GitHub destination and that authorization is cleared after completion; no real token was used.
+- 4 public request-loader fixtures: success without HttpGet, function fallback when request is a table, HTTP rejection before compilation, and compile failure before execution. No credentials attached.
+- 9 finish-forecast regression groups. The price-order x10 scenario first failed against the old runtime (optimistic scenario incorrectly acquired FINISH); after the patch it stays an estimate. Cases cover paid-before-effective bonuses, actual gate ordering without mutating the ledger, funded completion without rate data, fresh income invalidation, receipts preserving the deadline, prompt review of an unaffordable tail, retaining the current pass, cash-funded recovery, and preserving a ready evolution. These are offline scenarios, not a completed live Halo.
 - 4 data-inspection fixture groups: formatted cash and exclusions, fresh resampling, explicit limits, and missing-root handling.
 - 4 rebirth-confirmation fixture groups: disabled origin with a ready matching dialog, countdown waiting, changed economy cancellation, and rejection of mismatched/stale/undispatched sessions. These are a simulated regression sequence, not a successful live rebirth.
 - 8 replicated-state fixture groups using the numeric values observed in the live log: independent encoding calibration, hidden updates and huge exponents, bank isolation, reset invalidation, unknown zero sentinel, linear encoding/mismatch revocation, ownership loss, and absent attributes.
-- 6 standalone action-capture fixture groups: absent/broken capabilities, exactly-once passthrough with nil arguments/results, scope/cycle/redaction limits, original errors/yields, ownership loss/manual cleanup, timeout/later-hook preservation. Startup sends no game remote. Real Xeno hook support and visibility of game-script calls remain untested.
+- 6 standalone action-capture fixture groups: absent/broken capabilities, exactly-once passthrough with nil arguments/results, scope/cycle/redaction limits, original errors/yields, ownership loss/manual cleanup, timeout/later-hook preservation. Startup sends no game remote. The user's Xeno subsequently reported absent capture capabilities; no actual game call was captured.
 
 Observed in the user's current Roblox player log on September 23 (UTC+5):
 
@@ -26,11 +28,15 @@ Observed in the user's current Roblox player log on September 23 (UTC+5):
 - 05:32:17: original running controller logged UNLOADED. The two diagnostic samples did not restart it or verify the rebirth patch.
 - 05:42:45: 4.0.1-dev reported Cash=log10 matching raw 208.7737529124466 and GUI 5.939 e208. At 05:43:05 Investors=log10 matched raw 65.63493889154753 and GUI 4.315 e65. This verifies observed calibrations in the log, not the entire adapter.
 - 05:42:46 through 05:42:48: Xeno v1.3.60 supplied no firesignal candidate, getconnections probes failed, and VirtualInput succeeded. Purchases were therefore still using the GUI path. Headless actions and parallel upgrade dispatch have not been implemented.
+- 05:43:58: FINISH_PROJECTED_CATALOGUE_ROUTE selected with 271 rows remaining and 50.69 modeled seconds, despite the disabled conditional-finish policy. Later BUY/WAIT_GROWTH loops persisted until the user paused at 05:45:02. This is the observed forecast failure; 4.0.2 removes the override and bounds the commitment.
+- 05:58:20: standalone action capture reported hookmetamethod=false, getnamecallmethod=false, decompile=true, getscriptbytecode=true, then UNSUPPORTED. No game action was sent or captured.
+- 06:04:44: a staged loader test reported HTTP=false before compilation. Prior one-line launches failed with attempt to call a table value. At 06:07:52 the request-based loader successfully launched the client inspector; it reached DONE at 06:07:57.
+- 06:07:52: the new owned base was Workspace.Tycoon3, with INTERNAL_STAND_KEYS LemonStand despite the displayed Lime name. Upgrade RemoteFunctions and ClientTycoonUpgrades/TycoonUpgrades/UIManageTileEarner modules were found. All ten decompile attempts returned Bytecode version (12) unhandled, so no signature was recovered. Inspector v2 can export bounded bytecode for five specific handler modules for offline inspection; that fallback is not yet live-tested.
 
 Not passed / not performed:
 
 - Full static type inference: standalone Luau lacks Roblox globals, and inference also exceeds its complexity budget in migrated legacy strategy code. Compilation above succeeded; this is not a claim of a clean typecheck.
 - Successful live reset after the patch, the real gateway notice, minimized operation, AFK duration, visual QA in the Roblox renderer, or a real private HTTP download through the user's Lua environment. Launch and purchase evidence is limited to the log observations above.
-- Live acceptance of the new replicated-state integration and its encoding calibration, pending reset reward/evolution readiness without menus, and concurrent upgrade transactions. GUI navigation remains necessary for those unknown fields and current actions.
+- Sustained reliability of replicated-state encoding calibration, pending reset reward/evolution readiness without menus, and concurrent upgrade transactions. Initial Cash/Investors matches are recorded above; later Cash calibration churn means sustained reliability is not established. GUI navigation remains necessary for unknown fields and current actions.
 
 This is a development release, not a verified always-optimal or always-running controller.

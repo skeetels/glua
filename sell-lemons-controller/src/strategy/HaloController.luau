@@ -21,7 +21,7 @@ function __slctx.HaloRun.cancelFinish(why)
     if h.mode=='FINISH' then
         __slctx.log('FINISH_ROUTE_INVALIDATED',why..'; retain construction and pass; no reset sent')
         __slctx.Strategy.route().lastDecision='FINISH_ROUTE_INVALIDATED'
-        h.nextReview=__slctx.now()+__slctx.CONFIG.PreparationReviewMinimumSeconds
+        h.nextReview=__slctx.now();h.finishReviewPending=true
     end
     h.mode='PREPARE';h.finish=nil;h.forecast=nil;h.calibration=why
     h.planDirty=true
@@ -135,6 +135,7 @@ function __slctx.HaloRun.plan(force)
     end
     h.remaining=rem;h.calibration=why or 'price model available'
     if not rem then
+        if h.mode=='FINISH' then __slctx.HaloRun.cancelFinish('FINISH_PRICE_MODEL_UNAVAILABLE') end
         h.forecast=nil;h.requiredInvestors=nil
         __slctx.HaloRun.economySnapshot(nil,__slctx.cash(),nil,__slctx.Strategy.effectiveActionSeconds('buy'))
         return nil
@@ -151,11 +152,14 @@ function __slctx.HaloRun.plan(force)
     -- never reapply bonuses that might already be included in the observed income.
     local effects=__slctx.CONFIG.EnableCatalogueRouteProjection and h.book.complete and rem.modelVerified and rem.certifiable
     local bound=__slctx.HaloPlan.passiveBound(rem,money,rate,dt)
-    local roll=__slctx.HaloPlan.roll(rem,money,rates,dt,effects)
-    local routeRem=rem;local routeEffects=effects;local levelRoute
-    local expanded=__slctx.HaloPlan.withLevelPlan(rem,sourceCards,h.levelCurves,rates,__slctx.Strategy.largestBatch(),
+    local currentRow=r.buyQuote and r.buyQuote.id==h.quoteId and h.quotedRow or nil
+    local routeRem=__slctx.HaloPlan.frontierRoute(rem,currentRow,r.buyQuote)
+    local roll=__slctx.HaloPlan.roll(routeRem,money,rates,dt,effects)
+    local routeEffects=effects;local levelRoute
+    local expanded=__slctx.HaloPlan.withLevelPlan(routeRem,sourceCards,h.levelCurves,rates,__slctx.Strategy.largestBatch(),
         __slctx.Strategy.effectiveActionSeconds('upgrade'),__slctx.CONFIG,effects)
     if expanded then
+        expanded=__slctx.HaloPlan.frontierRoute(expanded,currentRow,r.buyQuote)
         levelRoute=__slctx.HaloPlan.roll(expanded,money,rates,dt,true)
         if levelRoute and (not roll or __slctx.BN.cmp(levelRoute.time,roll.time)<0) then
             routeRem=expanded;routeEffects=true;roll=levelRoute
@@ -167,17 +171,27 @@ function __slctx.HaloRun.plan(force)
     local economy=__slctx.HaloRun.economySnapshot(routeRem,money,rate,dt,rates,routeEffects)
     economy.levelNodes=routeRem.levelNodes or 0
     economy.levelProjection=routeRem.hasLevels==true
-    if not yes and economy.ready and effects and not economy.levelProjection then
-        yes=true;reason='FINISH_PROJECTED_CATALOGUE_ROUTE';chosen=roll
-    end
+    -- Price-order cash flow remains useful as a scenario, never as an override
+    -- of finishDecision's financing/conditional-route requirements.
     h.requiredInvestors=economy.rebirth and economy.rebirth.requiredBank or nil
-    if yes and h.mode~='FINISH' and not next(r.blocked or {}) and not r.powerUnresolved then
+    if h.mode=='FINISH' then
+        local healthy,issue=__slctx.HaloPlan.finishHealth(h.finish,__slctx.now(),yes and chosen or nil,
+            money,r.buyQuote and r.buyQuote.cost,rate,__slctx.CONFIG)
+        if not yes or not healthy then
+            __slctx.HaloRun.cancelFinish(not yes and reason or issue)
+        end
+    end
+    if yes and h.mode~='FINISH' and (not h.finishReviewPending or chosen.funded)
+        and not next(r.blocked or {}) and not r.powerUnresolved then
         __slctx.Strategy.cancelResetIntent('FINISH_ROUTE_SELECTED')
         r.lastDecision=reason;r.lastResetEstimate=nil
+        h.finishReviewPending=nil
         h.mode='FINISH';h.finish={at=__slctx.now(),reason=reason,predicted=chosen.time,wait=chosen.wait,
-            conditional=reason=='FINISH_CONDITIONAL_CATALOGUE_ROUTE' or reason=='FINISH_PROJECTED_CATALOGUE_ROUTE',income=rate,lastProgress=__slctx.now()}
+            deadline=__slctx.now()+(__slctx.BN.number(chosen.time) or 0)+__slctx.CONFIG.HaloFinishGraceSeconds,
+            conditional=reason=='FINISH_CONDITIONAL_CATALOGUE_ROUTE',income=rate,lastProgress=__slctx.now()}
         __slctx.log('FINISH_ROUTE_SELECTED',reason..'; remaining='..rem.count..'; remaining cost with margin='..fmt(rem.cost)
-            ..'; modeled seconds='..fmt(chosen.time)..'; rebirth/evolution/optional powers suspended')
+            ..'; modeled seconds='..fmt(chosen.time)..'; fixed budget seconds='..tostring(h.finish.deadline-h.finish.at)
+            ..'; rebirth/evolution/optional powers suspended while forecast holds')
     end
     h.planSeconds=(h.planSeconds or 0)+math.max(0,__slctx.now()-computeStarted)
     h.planMaxSeconds=math.max(h.planMaxSeconds or 0,__slctx.now()-computeStarted)
@@ -319,6 +333,7 @@ function __slctx.HaloRun.stampReview()
     h.buysAtReview=r.runBuyCount or 0;h.upgradesAtReview=__slctx.S.counts.upgrade
     h.reviewRate=__slctx.Strategy.rate();h.reviewCash=__slctx.cash()
     h.reviewPass=r.pass and r.pass.id;h.progressReviewHint=nil;h.powerReviewHint=nil
+    h.finishReviewPending=nil
 end
 function __slctx.HaloRun.resume(destination,why)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
@@ -489,6 +504,7 @@ end
 function __slctx.HaloRun.reviewDue(q)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if h.mode=='FINISH' or not __slctx.S.resetEnabled or not __slctx.CONFIG.AutoRebirth or r.recovery or isPending() then return false end
+    if h.finishReviewPending then return true end
     if __slctx.now()<(h.nextReview or 0) then return false end
     local age=__slctx.now()-(h.lastReview or __slctx.now())
     if age<__slctx.CONFIG.PreparationReviewMinimumSeconds then return false end
@@ -811,6 +827,15 @@ function __slctx.HaloRun.buy()
     end
     h.unknownSince=nil;r.buyQuote=q;__slctx.Strategy.observeBuildQuote(q);__slctx.HaloRun.observeQuote(q);__slctx.HaloRun.plan(false)
     local amount=__slctx.cash();if not amount then return end
+    if h.mode=='FINISH' then
+        local funded=h.remaining and __slctx.BN.cmp(amount,h.remaining.cost)>=0
+        local healthy,issue=__slctx.HaloPlan.finishHealth(h.finish,__slctx.now(),funded and {funded=true} or nil,amount,q.cost,
+            __slctx.HaloRun.income(),__slctx.CONFIG)
+        if not healthy then __slctx.HaloRun.cancelFinish(issue) end
+    end
+    if h.finishReviewPending and __slctx.S.resetEnabled and (__slctx.CONFIG.AutoRebirth or __slctx.CONFIG.AutoEvolution) and not isPending() then
+        __slctx.HaloRun.requestReview('BUY');return
+    end
     if h.mode~='FINISH' and not __slctx.Planner.isTerminalName(q.name) then
         if __slctx.HaloRun.reviewDue(q)then __slctx.HaloRun.requestReview('BUY');return end
         if __slctx.Strategy.maybeFastBuild()then return end
@@ -834,16 +859,7 @@ function __slctx.HaloRun.buy()
     end
     if h.mode=='FINISH' then
         h.waitUntil=__slctx.now()+.25;h.waitReturn='BUY';h.waitCost=q.cost;h.waitId=q.id
-        local eta=__slctx.Core.eta(amount,q.cost,__slctx.Strategy.rate())
-        local budget=math.max(__slctx.CONFIG.FinishMaximumWaitSeconds,2*(h.finish and __slctx.BN.number(h.finish.wait)or 0)+10)
-        h.finish.stallSince=h.finish.stallSince or __slctx.now()
-        local timedOut=__slctx.now()-h.finish.stallSince>budget
-        local unavailable=(not eta or eta==math.huge) and __slctx.now()-h.finish.stallSince>__slctx.CONFIG.HaloFinishGraceSeconds
-        if unavailable or timedOut then
-            __slctx.HaloRun.cancelFinish('observed financing disagrees with the committed forecast')
-            if r.pass and r.pass.finished then r.pass=nil end;__slctx.Strategy.phase('UPGRADE','нужен пересчёт по реальным ценам/доходу');return
-        end
-        __slctx.status('FINISH_ACCUMULATE','FINISH · накопление на '..q.name..'; rebirth не проверяется')
+        __slctx.status('FINISH_ACCUMULATE','FINISH · накопление на '..q.name..'; проверяю оставшийся бюджет времени')
         __slctx.Strategy.phase('WAIT_GROWTH','накопление в рамках финального бюджета');return
     end
     if not h.wall or h.wall.quote~=q.id then h.wall={quote=q.id,at=__slctx.now()} end
@@ -943,16 +959,19 @@ function __slctx.HaloRun.progress()
     local current=__slctx.BN.format(v.currentRate);local required=__slctx.BN.format(v.requiredRate)
     local mode=v.levelProjection and 'с расчётной платной прокачкой и бонусами' or (v.routeScenario and 'с оставшимися бонусами базы' or 'без ещё не подтверждённых бонусов')
     local gap=v.factor and ('Нужно усиление ×'..__slctx.BN.format(v.factor)) or 'доход уточняется'
-    if v.ready then gap=v.levelProjection and 'По расчёту хватит этой E после запланированной прокачки.' or 'Экономика готова: заканчиваю круг на этой E.' end
+    if h.mode=='FINISH' then gap='Остаток обеспечен по проверяемому бюджету; пересчитываю по ходу.'
+    elseif v.scenarioReady then gap='С будущими бонусами финал возможен; порядок открытия не подтверждён.' end
     local text=heading..'\nДоход/с '..current..' → ≈ '..required..' ('..mode..')\n'..gap
     local bar=v.logFraction or v.fraction or 0
+    if h.mode~='FINISH' then bar=math.min(.999,bar) end
     audit.lowerBound=not h.book.complete
     local bonus=v.factors and v.factors.bonus or __slctx.CONFIG.ExpectedInvestorBonus
-    local details='Шкала силы (log): '..string.format('%.1f%%',bar*100)
+    local details=(v.routeScenario and 'Сценарий с будущими бонусами (log): ' or 'Шкала силы (log): ')..string.format('%.1f%%',bar*100)
         ..' · доход уже включает x'..__slctx.CONFIG.ExpectedTimeMultiplier..' и текущие бонусы'
     if v.rebirth then
         details=details..'\nПосле rebirth и восстановления: '..__slctx.BN.format(v.rebirth.currentRate)..'/с'
-            ..(v.rebirth.ready and ' — расчётный финал доступен' or ' — подготовка ещё нужна')
+            ..(v.rebirth.ready and ' — остаток обеспечен в модели восстановленной базы'
+                or v.rebirth.scenarioReady and ' — финал возможен только в сценарии будущих бонусов' or ' — подготовка ещё нужна')
     end
     if v.evolutionStartBank then
         details=details..'\nE'..tostring(v.nextEvolution)..': старт '..__slctx.BN.format(v.evolutionStartBank)..' инвесторов; банк пересчитывается, не сохраняется.'

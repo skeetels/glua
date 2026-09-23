@@ -1,5 +1,5 @@
 {
-  "version": "4.0.1-dev",
+  "version": "4.0.2-dev",
   "entry": [
     "src/config.luau",
     "src/core/Numeric.luau",

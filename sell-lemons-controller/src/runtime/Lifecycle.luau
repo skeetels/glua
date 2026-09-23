@@ -107,7 +107,7 @@ for eventName,focused in pairs({WindowFocused=true,WindowFocusReleased=false}) d
 end
 __slctx.S.panel=__slctx.panel;__slctx.S.panelFrame=__slctx.frame;__slctx.S.panelVisibilityVersion=0
 __slctx.panel.Parent=__slctx.gui
-__slctx.log('LOADED','v4.0.1-dev; owned replicated state observer; amounts require visible calibration; rebirth confirmation gate patched. New paths tested offline; live acceptance pending.')
+__slctx.log('LOADED','v4.0.2-dev; conditional forecasts cannot override finish financing; fixed route deadline and immediate failed-forecast review. Tested offline; live acceptance pending. Actions still use GUI.')
 task.spawn(function()
     while not __slctx.S.unloaded do
         local yieldsBefore=__slctx.S.actionYieldSerial or 0

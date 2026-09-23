@@ -172,6 +172,20 @@ function __slctx.HaloPlan.markBought(book,row,q,remaining)
     book.bought[row.id]=true;book.revision=book.revision+1
     return true
 end
+function __slctx.HaloPlan.frontierRoute(remaining,row,quote)
+    if not remaining or not row or not quote or not quote.cost then return remaining end
+    local position
+    for i,item in ipairs(remaining.rows)do if item.id==row.id then position=i;break end end
+    if not position then return remaining end -- The last observed item may already be bought.
+    local out=table.clone(remaining);out.rows={}
+    local gate=table.clone(remaining.rows[position])
+    if B.cmp(quote.cost,gate.cost)>0 then
+        out.cost=B.add(B.sub(remaining.cost,gate.cost),quote.cost);gate.cost=cp(quote.cost)
+    end
+    out.rows[1]=gate;out.frontierId=gate.id
+    for i,item in ipairs(remaining.rows)do if i~=position then out.rows[#out.rows+1]=item end end
+    return out
+end
 function __slctx.HaloPlan.sourceModel(cards,totalRate,sourceRate)
     if not totalRate then return nil end
     local sources,sum,complete={},B.new(0),#(cards or {})>0
@@ -215,7 +229,8 @@ function __slctx.HaloPlan.roll(remaining,money,rateModel,secondsPerBuy,useEffect
         end
     end
     return {time=time,wait=waiting,service=service,cash=balance,rate=rate,
-        quality=useEffects and 'catalogue price-order scenario; unlock order not guaranteed' or 'constant-income catalogue route'}
+        quality=useEffects and (remaining.frontierId and 'observed gate first; later unlock order unknown'
+            or 'catalogue price-order scenario; unlock order not guaranteed') or 'constant-income catalogue route'}
 end
 function __slctx.HaloPlan.passiveBound(remaining,money,rate,actionSeconds)
     if not remaining or not money then return nil end
@@ -237,6 +252,30 @@ function __slctx.HaloPlan.finishDecision(book,remaining,bound,roll,config,allCou
     if config.AllowConditionalFinish==true and book.complete and book.orderChecks>=24 and book.orderMisses==0
         and roll and B.cmp(roll.wait,B.new(allowedWait*.5))<=0 then return true,'FINISH_CONDITIONAL_CATALOGUE_ROUTE',roll end
     return false,'PREPARE_MORE_CAPITAL',bound
+end
+function __slctx.HaloPlan.finishHealth(commit,time,remainingForecast,money,nextCost,rate,config)
+    if not commit then return false,'FINISH_COMMIT_MISSING' end
+    -- Cash can complete the route even when a rate sample is temporarily absent.
+    if remainingForecast and remainingForecast.funded then return true end
+    local left=(commit.deadline or commit.at)-time
+    if left<=0 then return false,'FINISH_DEADLINE_EXCEEDED' end
+    if remainingForecast and B.cmp(remainingForecast.time,B.new(left))>0 then
+        return false,'FINISH_REMAINING_TIME_EXCEEDED'
+    end
+    if money and nextCost and B.cmp(money,nextCost)<0 then
+        if not rate or rate.m<=0 then
+            commit.missingRateSince=commit.missingRateSince or time
+            if time-commit.missingRateSince>=(config.HaloFinishGraceSeconds or 4) then
+                return false,'FINISH_INCOME_UNAVAILABLE'
+            end
+        else
+            commit.missingRateSince=nil
+            -- Use the actual current gate. A bonus behind it cannot pay this gap.
+            local wait=B.div(B.sub(nextCost,money),rate)
+            if B.cmp(wait,B.new(left))>0 then return false,'FINISH_NEXT_GATE_EXCEEDS_BUDGET' end
+        end
+    end
+    return true
 end
 function __slctx.HaloPlan.replay(trace,gain,config)
     if not trace or not trace.complete or trace.invalid or not trace.points or #trace.points<2 then return nil end
@@ -575,8 +614,9 @@ function __slctx.HaloPlan.routeReadiness(remaining,money,model,actionSeconds,all
     v.factor=B.div(required,rate);v.decadesShort=math.max(0,B.log(v.factor))
     v.ratio=B.div(rate,required);v.fraction=math.max(0,math.min(1,B.number(v.ratio) or 0))
     v.capacity=B.mul(v.cost,v.ratio)
-    v.financed=B.cmp(direct.wait,B.new(allowance))<=0
-    v.ready=v.financed and v.certifiable
+    -- Preserve readiness from the order-independent current-income bound.
+    -- A complete ownership ledger does not establish the future unlock order.
+    v.scenarioReady=B.cmp(direct.wait,B.new(allowance))<=0 and v.certifiable
     v.additionalWait=direct.wait
     return v
 end

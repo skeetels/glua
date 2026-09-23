@@ -20,3 +20,11 @@ try:
     subprocess.run([str(runtime),str(generated)],check=True,cwd=ROOT)
 finally:
     generated.unlink()
+with tempfile.NamedTemporaryFile(mode='w',suffix='.luau',prefix='public-loader-generated-',dir=ROOT/'tests',encoding='utf-8',delete=False) as f:
+    f.write('local loader=function()\n'+(ROOT/'loader/one-line.lua').read_text(encoding='utf-8')+'\nend\n')
+    f.write("require('./public-loader-cases')(loader)\n")
+    generated=Path(f.name)
+try:
+    subprocess.run([str(runtime),str(generated)],check=True,cwd=ROOT)
+finally:
+    generated.unlink()
