@@ -1,7 +1,7 @@
 {
-  "bundle_sha256": "f6646b2de063f2e9d9c788104d4666cc5c6603816523d83bd64f7b0494447d14",
+  "bundle_sha256": "49ed983fd3b7a1609b8538d8b5b64a4ac97cb18b64161b13eb4e8f831f09bcde",
   "modules": {
-    "src/config.luau": "2e27bfe5276dc0cd1c88b3e6188652600a97a181ef9694689bf7e88c43fc2238",
+    "src/config.luau": "0495eed90a9938d72c5c609044092694388a962a589c3ddfacc361530e33124e",
     "src/core/Numeric.luau": "71f7b50ca6633350e85f9a6dfba9aef425afd34604648c1473afd46ba40466ac",
     "src/data/GameBalance.luau": "298a5a9321520e9f5e8a1ffd693c3bd31ec0b6fdb47f0c8845be8d89b9c6b402",
     "src/core/UpgradeMath.luau": "09482f8e16b47438cd9eb975f72cb5a14d960b73f7f2f6b05473fbb87f7b2b48",
@@ -32,15 +32,15 @@
     "src/strategy/Observations.luau": "91ae3efe67e655a51f7ea7713fb23f523c85040076659c99ef873ed8b74547f5",
     "src/strategy/ResetPlanning.luau": "d9a6d71d8f642f59ccc769ebf7e5806417ee782b2c84da244227ea3818fe1cc0",
     "src/strategy/Growth.luau": "ceb4a3f716e32254f130454c108c4742fb6584a5ab51da18db701486b57f2c4d",
-    "src/strategy/HaloController.luau": "fd0ac0f928732bc41021d840d78f6c52201ca494cfb561835d227351c967dbf1",
+    "src/strategy/HaloController.luau": "d2d2f522523d1bd5fd971c08287d29e118495743c019471704f545246c7fb15f",
     "src/adapters/DirectPurchases.luau": "b94b882aa51405948f6c32e1c8a362cad535fdac7e07af00e3931b4c7f827ddc",
     "src/adapters/DirectPrestige.luau": "6f966966cd90890d8042eb888bbd1bb4725da907d8d01af1e1e35bfa728158a5",
     "src/ui/Progress.luau": "fa4f1ce2a8f5489b5d62e6cb20cc8eb9cb6fb087ef3ab760578bf6a2cfff5ce5",
     "src/ui/Panel.luau": "96734b94a6d0626d98827cde537c7ef92acd044835e2b4aec80fbed7d49c8a69",
-    "src/runtime/Diagnostics.luau": "11ad180593a90e5bf1e7989e5fec43bf20eb27078e212d8819465c285a58b13f",
+    "src/runtime/Diagnostics.luau": "b856167cf6e660133e19c186f8376a87fa39a5ede330d157a8bc845e0e83fcc6",
     "src/runtime/DataInspection.luau": "8b873317ed943a8e53c0e6a84fb051f2b785a9c2cfcfc8cd1885c3cea5ba96ad",
     "src/runtime/Supervisor.luau": "7716c7159c0c1509634397ddd414478149047c7f14bf5e34da01f6ff6f5036ae",
     "src/runtime/AntiIdle.luau": "b9b4ca584924bb96556007cf5cc54e204ffdb1e124aa9301bd087e80576fb287",
-    "src/runtime/Lifecycle.luau": "d0873bf686d5aafdd4cc54e67d69a723ee0cfdce30d0d7e5d846e1a5fc397294"
+    "src/runtime/Lifecycle.luau": "9f4f7710033f0447c84f6af4f1c56652e7b2ecceeb95d935aecad05a8827a162"
   }
 }

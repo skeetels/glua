@@ -142,6 +142,7 @@ __slctx.CONFIG = {
     OrdinaryTargetWaitSeconds = 4,
     UnknownEvolutionReviewSeconds = 12,
     EvolutionReserveWaitSeconds = 2,
+    EvolutionDecisionSeconds = 2, -- Ready evolution cannot wait for new buys/upgrades or the rebirth watchdog.
     UpgradeActionEstimate = 0.18, -- Replaced with measured successful receipt latency.
     IncomeSampleSeconds = 0.12,
     MajorMultiplier = 100000,

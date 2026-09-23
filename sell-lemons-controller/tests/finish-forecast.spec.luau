@@ -162,4 +162,90 @@ test('missing Buy quote keeps available stands running and returns to Buy after 
     c.HaloRun.plan=function()end;c.HaloRun.observeQuote=function()end
     c.HaloRun.buy();assert(not h.buyUnavailableReason and r.buyQuote.id==2)
 end)
+test('H26 E2 report: distant Halo beats a near or funded local purchase, regardless of bonus size',function()
+    local c,s,r,h,B=fixture()
+    -- User report b11c59c6: 101 remaining, price model verified, complete ledger;
+    -- current 2.646e142/s, required 7.056e228/s even with future catalogue boosts.
+    s.rate=B.new(2.646,142);s.money=B.new(10^(.31586651036656),142)
+    local q={id='LemonTourism',name='Lime Tourism',cost=B.new(1.495,143),available=false}
+    c.readBuy=function()return q end
+    h.economy={known=true,certifiable=true,completeLedger=true,ready=false,scenarioReady=false,
+        currentRate=s.rate,requiredRate=B.new(7.056,228),catalogueRoute={time=B.new(1,86)},
+        rebirth={ready=false,scenarioReady=false},levelProjection=false}
+    h.remaining={cost=B.new(1.84,259),count=101,modelVerified=true,certifiable=true}
+    r.evo={ready=true,index=2,bonus=B.new(2.582,6)};r.runBuyCount=355;r.spent=B.new(0)
+    assert(c.Core.eta(s.money,q.cost,s.rate)<c.CONFIG.BuildShortWaitSeconds)
+    local held,reason=c.HaloRun.deferEvolution(false)
+    assert(not held and reason=='EVOLUTION_CURRENT_ROUTE_TOO_LONG','a near local BUY must not suppress ready evolution with a distant full route')
+    -- Recreate money arriving while the evolution confirmation is open.
+    s.money=B.new(1.5,143);q.available=true;c.S.resetSession={isReset=true}
+    assert(not c.HaloRun.deferEvolution(true),'one newly funded purchase must not cancel the confirmation')
+    c.S.resetSession=nil
+    for _,bonus in ipairs({B.new(400),B.new(2.582,6),B.new(1,18)})do
+        r.evo.bonus=bonus
+        assert(c.HaloRun.routeEvolutionChoice({},r.evo,nil,false,{})=='EVOLVE','no fixed investor-bonus target')
+    end
+    c.Strategy.refreshResetBuy=function()r.buyQuote=q;return true end
+    c.HaloRun.observeQuote=function()end;c.HaloRun.plan=function()end
+    c.HaloRun.checkedInvestors=function()return {investors=B.new(4.435,36),reward=B.new(4.214,55),ready=true,perInvestor=.08}end
+    c.Planner.shouldInspectEvolution=function()return false end
+    c.HaloRun.powerGoal=function()return nil end
+    c.HaloRun.resetForecast=function()return false,'BUILD_TARGET_SOON',1,{},{} end
+    c.HaloRun.review()
+    assert(r.phase=='EVOLVE_RESERVE' and s.resets==0,'review selects evolution; execution still requires the normal reset guards')
+end)
+
+test('unknown-route construction grace is shared across changing quotes and funded buys',function()
+    local c,s,r,h,B=fixture();s.money=B.new(10)
+    local q={id='cheap-1',name='A wall',cost=B.new(1),available=true}
+    c.readBuy=function()return q end
+    assert(c.HaloRun.deferEvolution(false))
+    local deadline=h.evolutionBuyGate.deadline
+    for i=2,30 do
+        s.time=s.time+1;q.id='cheap-'..i;c.S.counts.upgrade=i*100
+        local hold=c.HaloRun.deferEvolution(false)
+        assert(h.evolutionBuyGate.deadline==deadline)
+        assert(hold==(s.time<deadline),'new buys must not restart the construction grace')
+    end
+end)
+
+test('a disproved scenario loses its trial immediately without renewal',function()
+    local c,s,r,h,B=fixture();s.money=B.new(0)
+    c.readBuy=function()return {id='gate',name='Gate',cost=B.new(1,90),available=false}end
+    h.economy={scenarioReady=true,certifiable=true,catalogueRoute={time=B.new(12)}}
+    assert(c.HaloRun.deferEvolution(false));local deadline=h.evolutionFinishTrial.deadline
+    h.economy.known=true;h.economy.completeLedger=true;h.economy.scenarioReady=false
+    assert(not c.HaloRun.deferEvolution(false) and s.time<deadline)
+    h.economy.scenarioReady=true
+    assert(not c.HaloRun.deferEvolution(false) and h.evolutionFinishTrial.deadline==deadline)
+end)
+
+test('full funding at final confirmation still cancels evolution despite a frozen pessimistic model',function()
+    local c,s,r,h,B=fixture();c.S.resetSession={isReset=true}
+    h.economy={known=true,certifiable=true,completeLedger=true,scenarioReady=false,catalogueRoute={}}
+    h.remaining={cost=B.new(1.84,259),modelVerified=true,certifiable=true}
+    c.readBuy=function()return {name='Local wall',cost=B.new(1,143),available=true}end
+    s.money=B.new(2,259)
+    local hold,why=c.HaloRun.deferEvolution(true);assert(hold and why=='FINISH_CASH_FUNDED')
+    s.money=B.new(1,143)
+    c.readBuy=function()return {name='The End',cost=B.new(1,143),available=true}end
+    hold,why=c.HaloRun.deferEvolution(true);assert(hold and why=='FINAL_PURCHASE_FUNDED')
+end)
+
+test('ready evolution has its own scheduler even with zero work, recovery or rebirth disabled',function()
+    local c,s,r,h,B=fixture();r.evo={ready=true,index=2};r.phase='WAIT_GROWTH';r.recovery={}
+    c.CONFIG.AutoRebirth=false
+    c.readBuy=function()return {id='wall',name='Local wall',cost=B.new(1,100),available=false}end
+    c.t=function()return ''end;c.paths={evolution='Evolution'}
+    c.HaloRun.plan=function()end
+    h.lastReview=s.time;h.nextReview=s.time+12;h.upgradesAtReview=0;h.buysAtReview=0
+    assert(c.HaloRun.objectiveWatch() and r.phase=='CAPABILITY')
+    r.phase='WAIT_GROWTH'
+    assert(not c.HaloRun.objectiveWatch(),'same review cannot run every frame')
+    s.time=s.time+c.CONFIG.EvolutionDecisionSeconds
+    c.S.actionPending=true;assert(not c.HaloRun.objectiveWatch(),'pending receipt always owns the action')
+    c.S.actionPending=nil;assert(c.HaloRun.objectiveWatch())
+    r.phase='WAIT_GROWTH';h.mode='FINISH';s.time=s.time+c.CONFIG.EvolutionDecisionSeconds
+    assert(not c.HaloRun.objectiveWatch() and s.resets==0)
+end)
 print('PASS '..n..' forecast and scheduling regression groups')

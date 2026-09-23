@@ -113,7 +113,7 @@ for eventName,focused in pairs({WindowFocused=true,WindowFocusReleased=false}) d
 end
 __slctx.S.panel=__slctx.panel;__slctx.S.panelFrame=__slctx.frame;__slctx.S.panelVisibilityVersion=0
 __slctx.panel.Parent=__slctx.gui
-__slctx.log('LOADED','v4.0.9-dev; direct upgrades/Powers/Buy/rebirth; replicated prestige reads; evolution and Halo use GUI only for execution.')
+__slctx.log('LOADED','v4.0.10-dev; direct upgrades/Powers/Buy/rebirth; replicated prestige reads; evolution and Halo use GUI only for execution.')
 if __slctx.CONFIG.DirectUpgrades then
     local ok,report=pcall(__slctx.API.directReport)
     if ok then for line in report:gmatch('[^\n]+')do print(line)end

@@ -329,12 +329,25 @@ function __slctx.HaloRun.deferEvolution(refresh)
     if refresh then __slctx.HaloRun.plan(true)end
     if h.mode=='FINISH' then return true,'FINISH_ROUTE_PROTECTED' end
     local q=__slctx.readBuy and __slctx.readBuy();local money=__slctx.cash()
-    if q and q.cost and money and q.available and __slctx.BN.cmp(money,q.cost)>=0 then
-        return true,'CONTINUE_FUNDED_CONSTRUCTION'
+    -- The reset modal freezes the model, but a newly funded WHOLE remainder or
+    -- the actual final button can still cancel evolution at confirmation.
+    local rem=h.remaining
+    if money and rem and rem.cost and rem.modelVerified and rem.certifiable~=false
+        and __slctx.BN.cmp(money,rem.cost)>=0 then return true,'FINISH_CASH_FUNDED' end
+    if money and q and q.cost and q.available and __slctx.Planner.isTerminalName(q.name or '')
+        and __slctx.BN.cmp(money,q.cost)>=0 then return true,'FINAL_PURCHASE_FUNDED' end
+    local v=h.economy;local trial=h.evolutionFinishTrial
+    -- A cheap local purchase is not evidence of a short Halo route. In the H26/E2
+    -- report even the price-order scenario with future boosts remained far short.
+    -- Do not cancel an already selected evolution when that one purchase funds.
+    local routeTooLong=v and v.known and v.certifiable and v.completeLedger
+        and v.catalogueRoute and v.scenarioReady==false and not v.ready and not v.levelProjection
+    if routeTooLong then
+        if trial then trial.invalidated=true end
+        return false,'EVOLUTION_CURRENT_ROUTE_TOO_LONG'
     end
     -- A scenario can justify a bounded construction attempt, not an unconditional
     -- FINISH promise. Its original deadline never slides with minor upgrades.
-    local v=h.economy;local trial=h.evolutionFinishTrial
     if not trial and v and v.scenarioReady and v.certifiable and not v.levelProjection and v.catalogueRoute then
         local seconds=__slctx.BN.number(v.catalogueRoute.time)
         if seconds and seconds>=0 and seconds<math.huge then
@@ -345,15 +358,19 @@ function __slctx.HaloRun.deferEvolution(refresh)
             __slctx.log('EVOLUTION_FINISH_TRIAL','continue current base; bounded scenario seconds='..(trial.deadline-trial.started)..'; no reset sent')
         end
     end
-    if trial and __slctx.now()<trial.deadline then return true,'FINISH_SCENARIO_TRIAL_ACTIVE' end
+    if trial and not trial.invalidated and __slctx.now()<trial.deadline then return true,'FINISH_SCENARIO_TRIAL_ACTIVE' end
     if not q or not q.cost or not money then
         if __slctx.CONFIG.DirectPurchases and __slctx.readBuy then return true,'EVOLUTION_WAIT_CURRENT_BUY_DATA' end
         return false
     end
-    local key=tostring(q.id)..'/'..__slctx.BN.format(q.cost)
+    -- When the full route is still unknown, allow one brief construction grace
+    -- per cycle. New cheap buttons, receipts and tiny upgrades never renew it.
     local gate=h.evolutionBuyGate
-    if not gate or gate.key~=key then
-        gate={key=key,deadline=__slctx.now()+__slctx.CONFIG.BuildShortWaitSeconds};h.evolutionBuyGate=gate
+    if not gate then
+        gate={deadline=__slctx.now()+__slctx.CONFIG.BuildShortWaitSeconds};h.evolutionBuyGate=gate
+    end
+    if q.available and __slctx.BN.cmp(money,q.cost)>=0 and __slctx.now()<gate.deadline then
+        return true,'CONTINUE_FUNDED_CONSTRUCTION'
     end
     local rate=__slctx.HaloRun.income();local eta=__slctx.Core.eta(money,q.cost,rate)
     if eta and eta>=0 and eta<=math.max(0,gate.deadline-__slctx.now()) and __slctx.now()<gate.deadline then
@@ -559,7 +576,7 @@ end
 
 function __slctx.HaloRun.reviewDue(q)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
-    if h.mode=='FINISH' or not __slctx.S.resetEnabled or not __slctx.CONFIG.AutoRebirth or r.recovery or isPending() then return false end
+    if h.mode=='FINISH' or not __slctx.S.resetEnabled or not (__slctx.CONFIG.AutoRebirth or __slctx.CONFIG.AutoEvolution) or r.recovery or isPending() then return false end
     if h.finishReviewPending then return true end
     if __slctx.now()<(h.nextReview or 0) then return false end
     local age=__slctx.now()-(h.lastReview or __slctx.now())
@@ -664,6 +681,17 @@ function __slctx.HaloRun.performReset(inv,goal,detail,context)
     return done
 end
 
+function __slctx.HaloRun.selectEvolution()
+    local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state();local v=h.economy
+    r.capabilityOnly=nil;r.reserveSince=__slctx.now();h.progressReviewHint=nil
+    r.lastDecision='EVOLUTION_NO_SHORT_FINISH'
+    __slctx.log('EVOLUTION_ROUTE_CHOICE','remaining='..tostring(h.remaining and h.remaining.count)
+        ..'; currentScenarioReady='..tostring(v and v.scenarioReady)
+        ..'; incomeGapLog10='..tostring(v and v.decadesShort)
+        ..'; startBank='..fmt(r.evo and r.evo.bonus)..'; no fixed bonus target')
+    __slctx.Strategy.phase('EVOLVE_RESERVE','готова эволюция; быстрый финал текущей базы не подтверждён')
+end
+
 function __slctx.HaloRun.review()
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state();local destination=h.returnPhase or 'BUY'
     if isPending()then return end
@@ -715,8 +743,7 @@ function __slctx.HaloRun.review()
         local choice=__slctx.HaloRun.routeEvolutionChoice(inv,r.evo,goal,yes,detail)
         if choice=='CONTINUE' or choice=='FINISH' then __slctx.HaloRun.resume('BUY','текущий маршрут сохранён перед эволюцией');return end
         if choice=='EVOLVE' then
-            r.capabilityOnly=nil;r.reserveSince=__slctx.now();h.progressReviewHint=nil
-            __slctx.Strategy.phase('EVOLVE_RESERVE','быстрое завершение текущей базы не подтверждено; готова эволюция');return
+            __slctx.HaloRun.selectEvolution();return
         end
         if yes then
             if ctx.plannedSpend.m>0 then
@@ -735,8 +762,7 @@ function __slctx.HaloRun.review()
             ..'; pass retained='..tostring(r.pass and r.pass.id)..'; investor target='..fmt(h.requiredInvestors))
     end
     if r.evo and r.evo.ready and __slctx.CONFIG.AutoEvolution and __slctx.S.resetEnabled then
-        r.capabilityOnly=nil;r.reserveSince=__slctx.now()
-        __slctx.Strategy.phase('EVOLVE_RESERVE','готова эволюция; нет разрешённого более короткого финального маршрута');return
+        __slctx.HaloRun.selectEvolution();return
     end
     h.progressReviewHint=nil
     -- No idle delay for a missing mathematical model. Execute the retained work.
@@ -1018,6 +1044,15 @@ function __slctx.HaloRun.objectiveWatch()
     if __slctx.now()<(r.evolutionReserveRetryAt or 0)or isPending()then return false end
     local nextBuy=__slctx.readBuy();local amount=__slctx.cash()
     if nextBuy and __slctx.Planner.isTerminalName(nextBuy.name) and nextBuy.cost and amount and __slctx.BN.cmp(amount,nextBuy.cost)>=0 then return false end
+    local growthPhase=({BUY=true,UPGRADE=true,REBUILD=true,WAIT_GROWTH=true,CHECKPOINT=true})[r.phase]
+    if r.evo.ready and growthPhase and __slctx.now()>=(h.nextEvolutionReview or 0) then
+        h.nextEvolutionReview=__slctx.now()+__slctx.CONFIG.EvolutionDecisionSeconds
+        __slctx.HaloRun.plan(false)
+        if not __slctx.HaloRun.deferEvolution(false) then
+            __slctx.log('EVOLUTION_REVIEW_DUE','ready; no bounded final route; local purchases do not postpone review')
+            __slctx.HaloRun.requestReview(r.phase);return true
+        end
+    end
     local direct=__slctx.CONFIG.DirectPrestige and __slctx.DirectPrestige
     local changed=direct and tostring(r.evo.pct) or __slctx.t(__slctx.paths.evolution..'/Body/Progress')
     local pct=direct and r.evo.pct or __slctx.Core.percent(changed)
