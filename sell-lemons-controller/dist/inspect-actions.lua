@@ -4,7 +4,7 @@ local inspect=(function()
 -- Does not require game modules, invoke remotes, change attributes or click UI.
 return function()
     local function log(s)print('[SL ACTION DATA] '..s)end
-    log('START v2; rebirth, evolution, confirmation and balances; read only')
+    log('START v3; world overrides and investor bonus; read only')
     assert(game.PlaceId==79268393072444,'Run in Sell Lemons')
     local env=type(getgenv)=='function' and getgenv() or _G
     local read=type(env.getscriptbytecode)=='function' and env.getscriptbytecode or getscriptbytecode
@@ -12,6 +12,8 @@ return function()
     if env.SLActionInspection and env.SLActionInspection.active then log('ALREADY_RUNNING');return end
     local api={active=true};env.SLActionInspection=api
     local player=game:GetService('Players').LocalPlayer
+    local purchases=player:FindFirstChild('Purchases')
+    log('INVESTOR_BOOST_COUNT '..tostring(purchases and purchases:GetAttribute('InvestorBoost')))
     local own
     for _,o in ipairs(game:GetService('Workspace'):GetChildren())do
         local owner=o:FindFirstChild('Owner')
@@ -45,14 +47,11 @@ return function()
             end
         end
     end
-    local ranks={tycoonbalances=0,clienttycoonbalances=1,tycoonrebirth=2,clienttycoonrebirth=3,
-        tycoonevolution=4,clienttycoonevolution=5,tycoonascension=6,clienttycoonascension=7,
-        uialert=9,tycoonvalues=10}
+    local ranks={placedifferences=0,placedifferenceservice=1,premiumpurchases=2,placeservice=3}
     local rows={}
     for _,o in ipairs(game:GetService('ReplicatedStorage'):GetDescendants())do
         if o:IsA('ModuleScript') then
             local n=o.Name:lower();local rank=ranks[n]
-            if not rank and (n:find('rebirth',1,true) or n:find('evol',1,true) or n:find('investor',1,true) or n:find('ascen',1,true) or n:find('confirm',1,true))then rank=8 end
             if rank then rows[#rows+1]={o=o,rank=rank,path=o:GetFullName()}end
         end
     end
