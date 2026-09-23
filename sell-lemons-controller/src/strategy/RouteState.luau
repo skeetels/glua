@@ -306,6 +306,11 @@ function __slctx.Strategy.rebirthBarrier(inv)
     return __slctx.Strategy.validateResetIntent(inv)
 end
 function __slctx.Strategy.safePurchase(c)
+    if c.source=='direct' then
+        local r=__slctx.Strategy.route()
+        if (r.blocked or {})[__slctx.Safety.key(c)] then return false end
+        return __slctx.DirectUpgrades.purchase(c)
+    end
     local r=__slctx.Strategy.route();r.blocked=r.blocked or {}
     local key=__slctx.Safety.key(c)
     if r.blocked[key] then return false end
@@ -372,6 +377,9 @@ function __slctx.Strategy.stopForBlocked()
     return true
 end
 function __slctx.Strategy.currentBatch()
+    if __slctx.CONFIG.DirectUpgrades and __slctx.DirectUpgrades then
+        local s=__slctx.DirectUpgrades.state();return s and (s.cap==math.huge and 'max' or s.cap) or nil
+    end
     local button=__slctx.g(__slctx.paths.manage..'/StackButton')
     local label=__slctx.usable(button) and __slctx.Core.clean(__slctx.childText(button,'Stack')):lower() or ''
     -- UpgradeStack unlocks MAX and can select it immediately. In this mode

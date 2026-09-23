@@ -16,6 +16,7 @@ return function(__slctx)
 -- GUI/transaction and capital-accounting adapters retained from supplied 2.8.2.
 -- F6 start/pause; F7 diagnostics; F8 hide panel. No automatic start.
 __slctx.CONFIG = {
+    DirectUpgrades = true, -- Verified stand Upgrade(count); no Manage navigation or game-module require.
     -- 3.0 catalogue objective. Expected donor values are metadata, not extra multipliers.
     ExpectedInvestorBonus = 0.08,
     ExpectedTimeMultiplier = 16, -- Display/decomposition metadata only. Observed income ALREADY includes this.

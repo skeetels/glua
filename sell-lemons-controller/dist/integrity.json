@@ -1,14 +1,16 @@
 {
-  "bundle_sha256": "4ce7e035441d23b216d81f071ff281a3feb473dc2085e619e28302b20ce67423",
+  "bundle_sha256": "0893630422b8b461c6770633e32c2322b4dc6feaa4edde74c74daa6932e43622",
   "modules": {
-    "src/config.luau": "69660b7453a4e4ffd45a16d3e80825ae0b79d1515b39de1dddd4c8e99c49dcc3",
+    "src/config.luau": "72e7375f68c9750e1a59b021d5bd148e6a1e37e570048e2e8f1f12123e88c502",
     "src/core/Numeric.luau": "71f7b50ca6633350e85f9a6dfba9aef425afd34604648c1473afd46ba40466ac",
+    "src/data/GameBalance.luau": "3b492588e8e113d598dada020829d4ebb0a068ad29a2b64abf357c1067e041d5",
+    "src/core/UpgradeMath.luau": "09482f8e16b47438cd9eb975f72cb5a14d960b73f7f2f6b05473fbb87f7b2b48",
     "src/data/Catalogue.luau": "19681968d8448b6ea235f1e6913af7f16f21d39b848c8bdcd1e3f8b110589606",
     "src/core/HaloPlanner.luau": "eaf3374b88d2d3047a1e4bf778c735ba66603f615bdc45e1e178e9a6b570a4df",
-    "src/core/EconomyPlanner.luau": "7065d3495ad0b8b7a5778ccb15be6b77f5fe84bb5090e78a9a2226fd75cf21aa",
+    "src/core/EconomyPlanner.luau": "ff59577288931b22d8dcf33c79db343c6b0d7ec622c07079aa0cfee407bd52f9",
     "src/core/ObservationStore.luau": "2d73776d5115e5715f4633dd4651cd0d624b317e878d20478f44b971cd46d58b",
     "src/core/RecoveryPolicy.luau": "3b1c2f805e300caebdd0fc591a96120f6f8cc670280515858498a1fc45219b5b",
-    "src/runtime/ClientContext.luau": "570691f21eff9bda9c2690b27380874f18b5dbe7735c71bd961b51e41007b534",
+    "src/runtime/ClientContext.luau": "b3f78ad4f2fec5f33600aecbb42dbf92d168de1dcc47e1d687bcecd301034704",
     "src/adapters/GuiAccess.luau": "eb2c086e607c8a354b77f8d30d9a4893bc2293e0024604eefc078726b5c087bf",
     "src/adapters/VirtualInput.luau": "f137d029dec891fa6f4809d62b30ae4f2135f22795ffc5e05e94db132ed43497",
     "src/runtime/Focus.luau": "a728f802f934080869e12850fc1e1743941d9f0258687916f9373a4393b702a7",
@@ -20,14 +22,15 @@
     "src/runtime/Transactions.luau": "271aeb5fd12aa03ffb9b912cf6af5f08fd0f265ba7552b0f4b384f92a85ade0f",
     "src/runtime/Confirmation.luau": "23827a4aa162cf325061a270cee1182e6ce264ebec933feed52404d52058fd6c",
     "src/runtime/ResetTransaction.luau": "b8a4c89b334d89e8586ae68dfd32ccbcc9f01081fba58cc0b3ba0bb4b6df02a9",
-    "src/strategy/RouteState.luau": "504b0d32051529e3ad96cd4c5267df2a6247034d38b7bd3844486f4b57533d4c",
-    "src/strategy/BatchSelection.luau": "3868bcd80393f1410b8c6af588a2a14405aa515b52b70a4eed1944df6e1fe86d",
+    "src/adapters/DirectUpgrades.luau": "146cb8451f9b0812576158f16ba1d633abdeb9b4f55b974a36217a14604d2a85",
+    "src/strategy/RouteState.luau": "dec31a22c3eae8e95bf41321f44ef31f22a09c3e89f08983a492244b6e45568a",
+    "src/strategy/BatchSelection.luau": "2faab9a34cac5ea7207c368e2a5d0154b5d6c04c21774a624b1c7ec9f75e84b3",
     "src/strategy/InvestorPowers.luau": "232113551309b4e03ce01ce5a8ce32f639bd1ba49911c8b1a0668a5dd912c29a",
     "src/strategy/Capital.luau": "b6f6c0be45dfeb15fb505650aa4cf6cfbaf26c35d410cc4b579e02646c46aded",
     "src/strategy/UpgradeAllocation.luau": "697c8d4f972c599fda405aa7fe25723e7a8a1f541075ea9f60ff9b39613f5c73",
-    "src/strategy/Observations.luau": "6d6af3af0be853cb8d0b6397ad5cc9c9f5f5072941398db5a490eab723ba6f1c",
+    "src/strategy/Observations.luau": "91ae3efe67e655a51f7ea7713fb23f523c85040076659c99ef873ed8b74547f5",
     "src/strategy/ResetPlanning.luau": "0a051276bfcfc5fc1bb5c31408e7fdfb3ad17e625516e0a51bdd3ef4e638f2b3",
-    "src/strategy/Growth.luau": "da2f5dc102ca13ff3682b2d68f53e01b4ee701a48d419393c7e19bbad274a0f7",
+    "src/strategy/Growth.luau": "c7c4a99ef46d67a7161a0820015eaa31ebfd89fe34a63caf12edc80689b80c2e",
     "src/strategy/HaloController.luau": "499aba75c5a55ea2676beede063ada32b2debb4e6035f70bd00c84bb78578848",
     "src/ui/Progress.luau": "fa4f1ce2a8f5489b5d62e6cb20cc8eb9cb6fb087ef3ab760578bf6a2cfff5ce5",
     "src/ui/Panel.luau": "96734b94a6d0626d98827cde537c7ef92acd044835e2b4aec80fbed7d49c8a69",
@@ -35,6 +38,6 @@
     "src/runtime/DataInspection.luau": "8b873317ed943a8e53c0e6a84fb051f2b785a9c2cfcfc8cd1885c3cea5ba96ad",
     "src/runtime/Supervisor.luau": "c22c2a8d1421ce7c2f03e2979a65f08ef35522ffb1e149ae1308293c4c5d00db",
     "src/runtime/AntiIdle.luau": "b9b4ca584924bb96556007cf5cc54e204ffdb1e124aa9301bd087e80576fb287",
-    "src/runtime/Lifecycle.luau": "f60679639b0b79bc480f9778b68dc1033963c82eddac34930465f55c9493aee4"
+    "src/runtime/Lifecycle.luau": "14c57bf0b319f4e574e97c42ff6062a46a46cadd93ee7ec818892dcce6b22fcb"
   }
 }

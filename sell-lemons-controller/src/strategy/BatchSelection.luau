@@ -34,6 +34,9 @@ function __slctx.Strategy.cachedBatch(c,budget,ceiling)
     return 0
 end
 function __slctx.Strategy.selectBatch(target,visit)
+    if __slctx.CONFIG.DirectUpgrades and __slctx.DirectUpgrades then
+        local current=__slctx.Strategy.currentBatch();return current==target,'DIRECT_COUNTS_COMPUTED_PER_STAND'
+    end
     local b=__slctx.g(__slctx.paths.manage..'/StackButton');local seen={}
     for _=1,8 do
         local current=__slctx.Strategy.currentBatch()
@@ -66,6 +69,11 @@ function __slctx.Strategy.selectBatch(target,visit)
     return false,'STACK_CYCLE_LIMIT'
 end
 function __slctx.Strategy.stackPrepare()
+    if __slctx.CONFIG.DirectUpgrades and __slctx.DirectUpgrades then
+        local s=__slctx.DirectUpgrades.state();if not s then return false end
+        local r=__slctx.Strategy.route();r.batchSelected=s.cap==math.huge and 'max' or s.cap;r.maxUnavailable=s.cap~=math.huge
+        return true
+    end
     local r=__slctx.Strategy.route();local current=__slctx.Strategy.currentBatch()
     if current=='max' then r.maxUnavailable=nil;r.maxObserved=true;r.preferredReviewBatch='max' end
     local desired=r.preferredReviewBatch or (r.maxUnavailable and (r.availableBatches or __slctx.CONFIG.UpgradeBatches)[1] or 'max')

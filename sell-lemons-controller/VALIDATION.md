@@ -5,7 +5,7 @@ Source: supplied Sell Lemons Autofarm 3.3.3. Migrated top-level lexical bindings
 Passed:
 
 - Deterministic `tools/build.py --check` against source/integrity manifest.
-- Luau bytecode compilation of 45 files: 35 controller components, three standalone diagnostic/probe sources, two loaders, controller and four standalone tools.
+- Luau bytecode compilation of 48 files: 38 controller components, three standalone diagnostic/probe sources, two loaders, controller and four standalone tools.
 - 12 numeric/catalogue/observation/recovery-policy scenarios.
 - 8 supervisor scenarios, including repeated +1 work requesting a timely review without abandoning a partial pass, cancellation of recovery by manual pause, and no auto-resume during ambiguous transactions.
 - Full component initialization, diagnostic report, missing-data handling, idempotent unload, and listener cleanup in a minimal mock engine.
@@ -46,3 +46,11 @@ Not passed / not performed:
 This is a development release, not a verified always-optimal or always-running controller.
 
 At 06:38:52 (UTC+5), v2 ran without require errors but sent no requests: the new owned Tycoon7 had an empty upgrade map. TycoonUpgrades.GetLevel explicitly returns zero for an absent key. V3 handles that initial state and checks the nearest Tycoon.Purchasable ancestor Enabled attribute. Seven pricing dependencies exported successfully; the observed 340421-byte Balance exceeded v4 limits, so v5 permits up to 393216 bytes only for that exact module. Live v3 purchase acceptance remains pending.
+
+## 4.0.3 direct upgrade integration
+
+- 06:42:20 (UTC+5): the standalone direct probe sent Upgrade(1) for LemonStand and observed replicated level 2 -> 3. No UI-input function exists in that probe. This proves one direct purchase, not an eight-stand batch.
+- 06:44:12: Balance export succeeded, 340421 bytes, Adler32 914084511. Literal table construction recovered 18997 upgrade prices across eight stands. No serialized function was called; unsupported expressions remain symbolic. Config supplied AscensionPenalty=3.33 and UpgradeStack caps 1/5/25/100/MAX.
+- Production now includes GameBalance, UpgradeMath and DirectUpgrades (38 components). Upgrade passes reserve shared cash before parallel dispatch and reconcile each exact level delta; reset/owner/quote changes and unknown InversionCard price modifiers block spending. Rebuild passes carry the same direct-mode identity.
+- Offline checks cover literal prices, independent cumulative sums, Halo scaling, the post-table price formula, affordable maxima and exponents beyond normal floats. Mock-engine cases cover simultaneous multi-level purchases with shared-cash accounting, zero wallet, no GUI access, late cancellation, rejected/silent replies and reset during dispatch. These checks do not establish live performance or complete-game success.
+- Main build purchases, investor-power purchases and resets still use GUI. Full headless operation, new-runtime acceptance and concurrent live upgrades are not yet verified. `live_roblox_tested=false` applies to the complete 4.0.3 controller, not the separately confirmed +1 probe.

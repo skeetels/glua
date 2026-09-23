@@ -77,8 +77,12 @@ function __slctx.Strategy.rate()
 end
 function __slctx.Strategy.captureGrowth(cards)
     local r=__slctx.Strategy.route();local time=__slctx.now()
+    if not cards and __slctx.CONFIG.DirectUpgrades and __slctx.DirectUpgrades then
+        local snapshot=__slctx.DirectUpgrades.state()
+        if snapshot then cards=__slctx.DirectUpgrades.cards(snapshot)end
+    end
     if __slctx.Strategy.captureLevelCurves33 and cards then __slctx.Strategy.captureLevelCurves33(cards) end
-    if cards and #cards>0 and __slctx.visible(__slctx.g(__slctx.paths.cards)) then
+    if cards and #cards>0 and (cards[1].source=='direct' or __slctx.visible(__slctx.g(__slctx.paths.cards))) then
         local sum,n,total=__slctx.Planner.sumRates(cards)
         if sum and n==total and total>0 then r.uiObservation={rate=sum,time=time,kind='ui'} end
     end

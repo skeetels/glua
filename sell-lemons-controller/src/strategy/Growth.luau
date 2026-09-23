@@ -203,6 +203,7 @@ function __slctx.Strategy.beginPass(cards)
     r.batchQuotes={} -- New base purchases or powers cannot leave stale cached prices.
     r.pass={id=r.passSerial,order=order,index=1,started=__slctx.now(),economic=__slctx.CONFIG.EconomicPlanning,beforeRate=rate,
         beforeCards=cards,rateKnown=known==total and total>0,complete=false,purchases=0,levels=0,work={},upgradeSeconds=0}
+    r.pass.direct=cards[1] and cards[1].source=='direct' or false
     r.pass.buildQuoteKey=__slctx.Strategy.baseQuoteKey(r.buyQuote);r.pass.buildBuySerial=r.runBuyCount or 0
     local observed,_,kind=__slctx.Strategy.rate();r.pass.buildRate=observed;r.pass.buildRateKind=kind
     r.upgradeWall=false
@@ -248,6 +249,7 @@ function __slctx.Strategy.passRetry(message)
     else __slctx.status('PASS_VIEW_RETRY',message);__slctx.sleep(0.15) end
 end
 function __slctx.Strategy.growUpgrades()
+    if __slctx.CONFIG.DirectUpgrades and __slctx.DirectUpgrades then return __slctx.DirectUpgrades.grow()end
     local r=__slctx.Strategy.route()
     if not (__slctx.S.tablet and __slctx.S.tablet.owned) then
         r.cards={};if not r.pass or r.pass.finished then __slctx.Strategy.beginPass({}) end

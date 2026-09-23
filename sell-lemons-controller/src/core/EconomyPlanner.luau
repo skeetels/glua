@@ -79,7 +79,7 @@ function Planner.period(text)
 end
 function Planner.sourceRate(c)
     if c and c.income and c.income.m==0 then return __slctx.Core.BN.new(0) end
-    local period=Planner.period(c.period or '')
+    local period=c.periodSeconds or Planner.period(c.period or '')
     return period and c.income and __slctx.Core.BN.div(c.income,period) or nil
 end
 function Planner.sumRates(cards)

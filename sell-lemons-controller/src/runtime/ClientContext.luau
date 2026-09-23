@@ -2,7 +2,7 @@
 return function(__slctx)
 __slctx.Strategy={} -- route methods are defined after the GUI/action adapters.
 
--- Runtime adapter: only existing game GUI controls. No guessed remote payloads.
+-- Game GUI adapters plus verified direct stand upgrades. No guessed remote payloads.
 __slctx.Players=game:GetService('Players')
 __slctx.UIS=game:GetService('UserInputService')
 __slctx.player=__slctx.Players.LocalPlayer
@@ -16,6 +16,7 @@ if type(getgenv)=='function' then
     if ok and type(e)=='table' then __slctx.env=e end
 end
 __slctx.previousCycleState=nil
+assert(not (__slctx.env.SLDirectProbe and __slctx.env.SLDirectProbe.active),'[SL Farm] Direct probe is still pending; no second worker created.')
 if __slctx.env.SLAutofarm and type(__slctx.env.SLAutofarm.exportCycleState)=='function' then
     local ok,state=pcall(__slctx.env.SLAutofarm.exportCycleState)
     if ok and type(state)=='table' and state.place==game.PlaceId and state.user==__slctx.player.UserId then __slctx.previousCycleState=state end

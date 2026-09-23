@@ -1,8 +1,10 @@
 {
-  "version": "4.0.2-dev",
+  "version": "4.0.3-dev",
   "entry": [
     "src/config.luau",
     "src/core/Numeric.luau",
+    "src/data/GameBalance.luau",
+    "src/core/UpgradeMath.luau",
     "src/data/Catalogue.luau",
     "src/core/HaloPlanner.luau",
     "src/core/EconomyPlanner.luau",
@@ -20,6 +22,7 @@
     "src/runtime/Transactions.luau",
     "src/runtime/Confirmation.luau",
     "src/runtime/ResetTransaction.luau",
+    "src/adapters/DirectUpgrades.luau",
     "src/strategy/RouteState.luau",
     "src/strategy/BatchSelection.luau",
     "src/strategy/InvestorPowers.luau",
