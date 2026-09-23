@@ -3,6 +3,7 @@ local function fixture(mode)
     local env={};local logs={};local queue={};local time=0;local calls=0;local spawned=0
     local player={};local owner={Value=player,IsA=function(_,name)return name=='ObjectValue'end}
     local attributes={Cash=2,Evolution=5};local level={LemonStand=10,LemonDash=20}
+    if mode=='zero' then level={}end
     local values={GetAttribute=function(_,n)return attributes[n]end}
     local levels={GetAttribute=function(_,n)return level[n]end}
     local data={FindFirstChild=function(_,n)return n=='Values' and values or n=='Upgrades' and levels end}
@@ -14,12 +15,14 @@ local function fixture(mode)
             assert(count==1);assert(spawned==2,'both requests must be scheduled before waiting for responses')
             calls=calls+1
             if mode=='reject' then error('server rejected')end
-            if mode~='silent' then level[name]=level[name]+1 end
+            if mode~='silent' then level[name]=(level[name] or 0)+1 end
             if mode=='reset' then attributes.Evolution=6 end
             if mode=='newcounter' then attributes.TotalRebirths=1 end
             if mode=='owner' then owner.Value={}end
         end}
-        objects[#objects+1]={Name=name,IsDescendantOf=function(_,r)return r==own and name~='Foreign'end,
+        local purchase={Parent=own,HasTag=function(_,tag)return tag=='Tycoon.Purchasable'end,
+            GetAttribute=function(_,n)assert(n=='Enabled');return name~='Unknown'end}
+        objects[#objects+1]={Name=name,Parent=purchase,IsDescendantOf=function(_,r)return r==own and name~='Foreign'end,
             FindFirstChild=function(_,n)return n=='Upgrade' and remote end,GetFullName=function()return 'Workspace.Tycoon3.'..name end}
     end
     if mode=='duplicate' then objects[#objects+1]=objects[1]end
@@ -43,6 +46,9 @@ assert(calls==2 and level.LemonStand==11 and level.LemonDash==21 and not api.act
 assert(logs:find('RECEIPT LemonStand 10->11 confirmed=true',1,true))
 assert(logs:find('RECEIPT LemonDash 20->21 confirmed=true',1,true))
 assert(logs:find('SKIP Unknown',1,true) and not logs:find('STAND Foreign',1,true))
+local _,zero,zeroCalls,zeroLevels=fixture('zero')
+assert(zeroCalls==2 and zeroLevels.LemonStand==1 and zeroLevels.LemonDash==1)
+assert(zero:find('RECEIPT LemonStand 0->1 confirmed=true',1,true),'absent attribute is initial zero, not an unavailable stand')
 for _,mode in ipairs({'pending','previous','duplicate'})do local _,_,count=fixture(mode);assert(count==0,mode)end
 for _,mode in ipairs({'silent','reject'})do
     local _,result,count=fixture(mode);assert(count==2 and not result:find('confirmed=true',1,true),mode)
@@ -54,4 +60,4 @@ local pending,result,count,_,queue=fixture('timeout')
 assert(count==0 and pending.active and pending.pending==2 and not result:find('confirmed=true',1,true))
 for _,fn in ipairs(queue)do fn()end
 assert(not pending.active and pending.pending==0,'late return clears exclusion, never resends')
-print('PASS 10 direct probe groups: no require, parallel schedule, owned recorded identities, exclusions, duplicates, receipts, rejection, reset, owner and timeout')
+print('PASS 11 direct probe groups: no require, parallel schedule, owned enabled identities, initial zero, exclusions, duplicates, receipts, rejection, reset, owner and timeout')

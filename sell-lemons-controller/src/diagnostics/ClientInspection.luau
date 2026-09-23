@@ -1,7 +1,7 @@
 -- Read client handlers as text. Never require them or invoke any game remote.
 return function()
     local function log(s)print('[SL CLIENT] '..s)end
-    log('START v4; pricing dependencies; client text/bytecode only; no purchases or hooks')
+    log('START v5; pricing dependencies including large Balance; client text/bytecode only; no purchases or hooks')
     assert(game.PlaceId==79268393072444,'Run in Sell Lemons')
     local env=type(getgenv)=='function' and getgenv() or _G
     local decode=type(env.decompile)=='function' and env.decompile or decompile
@@ -63,7 +63,8 @@ return function()
         if row.rank>7 or type(readBytes)~='function' then return end
         local ok,data=pcall(readBytes,row.object)
         if not ok or type(data)~='string' then log('BYTECODE_FAILED '..row.path);return end
-        if #data<4 or #data>65536 or byteTotal+#data>262144 then log('BYTECODE_LIMIT '..row.path..' bytes='..#data);return end
+        local limit=row.path=='ReplicatedStorage.Balance' and 393216 or 65536
+        if #data<4 or #data>limit or byteTotal+#data>655360 then log('BYTECODE_LIMIT '..row.path..' bytes='..#data);return end
         byteTotal=byteTotal+#data
         local a,b=1,0
         for i=1,#data do a=(a+data:byte(i))%65521;b=(b+a)%65521 end

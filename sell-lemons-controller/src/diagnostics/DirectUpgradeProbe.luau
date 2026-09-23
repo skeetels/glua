@@ -16,7 +16,7 @@ return function()
     end
     local api={active=true,pending=0};env.SLDirectProbe=api
     local function run()
-        log('START v2: at most one +1 attempt per recorded owned stand; no module require, mouse or menus')
+        log('START v3: at most one +1 attempt per enabled owned stand; missing level is zero; no module require, mouse or menus')
         local player=game:GetService('Players').LocalPlayer
         local world=game:GetService('Workspace');local own
         for _,root in ipairs(world:GetChildren())do
@@ -37,23 +37,35 @@ return function()
             for _,key in ipairs(epochKeys)do if values:GetAttribute(key)~=epoch[key] then return false,'Reset changed' end end
             return true
         end
+        local function currentLevel(name)
+            local n=levels:GetAttribute(name)
+            return n==nil and 0 or n -- TycoonUpgrades.GetLevel uses Get(name) or 0.
+        end
+        local function enabled(instance)
+            local parent=instance.Parent
+            while parent and parent~=own do
+                if parent:HasTag('Tycoon.Purchasable') then return parent:GetAttribute('Enabled')==true end
+                parent=parent.Parent
+            end
+            return false
+        end
         local entries={};local names={}
         for _,instance in ipairs(game:GetService('CollectionService'):GetTagged('Tycoon.Earner'))do
             if instance:IsDescendantOf(own) then
                 local name=instance.Name:gsub('[^%w]','')
                 local remote=instance:FindFirstChild('Upgrade')
-                local level=levels:GetAttribute(name)
-                if remote and remote:IsA('RemoteFunction') and type(level)=='number' and level>=0 and level<math.huge and level%1==0 then
+                local level=currentLevel(name);local ready=enabled(instance)
+                if ready and remote and remote:IsA('RemoteFunction') and type(level)=='number' and level>=0 and level<math.huge and level%1==0 then
                     assert(not names[name],'Duplicate stand identity: '..name)
                     names[name]=true
                     entries[#entries+1]={name=name,level=level,remote=remote,instance=instance}
                     log('STAND '..name..' level='..level..' path='..instance:GetFullName())
-                else log('SKIP '..name..' level='..tostring(level)..'; no recorded level or Upgrade RemoteFunction')end
+                else log('SKIP '..name..' level='..tostring(level)..' enabled='..tostring(ready)..'; unopened or missing remote')end
             end
         end
         assert(#entries<=8,'Unexpected stand count')
         table.sort(entries,function(a,b)return a.name<b.name end)
-        if #entries==0 then log('DONE no recorded owned stand found; no requests sent');return end
+        if #entries==0 then log('DONE no enabled owned stand found; no requests sent');return end
         local ok,reason=validEpoch();assert(ok,reason)
         log('DISPATCH stands='..#entries..'; one +1 attempt each; server validates funds; no retry')
         local start=os.clock();api.pending=#entries
@@ -61,8 +73,8 @@ return function()
             task.spawn(function()
                 local accepted,err=pcall(function()
                     local valid,why=validEpoch();assert(valid,why)
-                    assert(entry.instance:IsDescendantOf(own) and entry.instance:FindFirstChild('Upgrade')==entry.remote,'Stand changed')
-                    assert(levels:GetAttribute(entry.name)==entry.level,'Level changed before dispatch')
+                    assert(entry.instance:IsDescendantOf(own) and entry.instance:FindFirstChild('Upgrade')==entry.remote and enabled(entry.instance),'Stand changed')
+                    assert(currentLevel(entry.name)==entry.level,'Level changed before dispatch')
                     entry.remote:InvokeServer(1)
                 end)
                 entry.returned=true;entry.ok=accepted;entry.error=not accepted and tostring(err) or nil
@@ -73,7 +85,7 @@ return function()
         end
         local function confirmed(entry)
             return validEpoch() and entry.instance:IsDescendantOf(own)
-                and entry.returned==true and entry.ok==true and levels:GetAttribute(entry.name)==entry.level+1
+                and entry.returned==true and entry.ok==true and currentLevel(entry.name)==entry.level+1
         end
         repeat
             local proved=0
@@ -82,7 +94,7 @@ return function()
             task.wait(.1)
         until os.clock()-start>=8
         for _,entry in ipairs(entries)do
-            log('RECEIPT '..entry.name..' '..entry.level..'->'..tostring(levels:GetAttribute(entry.name))..' confirmed='..tostring(confirmed(entry)))
+            log('RECEIPT '..entry.name..' '..entry.level..'->'..tostring(currentLevel(entry.name))..' confirmed='..tostring(confirmed(entry)))
         end
         api.timedOut=api.pending>0
         log('DONE pending='..api.pending..'; this probe will not repeat any request')
