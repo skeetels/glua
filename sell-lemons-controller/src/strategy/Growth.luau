@@ -513,13 +513,13 @@ function __slctx.Strategy.reserveEvolution()
     if not evo then __slctx.pause('EVOLUTION_READ_FAILED',tostring(err));return end
     r.evo=evo;__slctx.S.prestige=__slctx.S.prestige or {};__slctx.S.prestige.evo=evo
     if not evo.ready then __slctx.Strategy.resumeGrowth(nil,'evolution readiness changed');return end
-    local allowed,reason=__slctx.Core.evolutionGuard(evo,__slctx.CONFIG.TabletReserve)
+    local allowed,reason=__slctx.Core.evolutionGuard(evo,__slctx.CONFIG.EvolutionMinimumBank)
     if allowed then __slctx.doReset('evolve');return end
-    __slctx.status(reason,'Эволюция готова. Жду видимый стартовый запас '..__slctx.CONFIG.TabletReserve..' инвесторов; rebirth не делаю.')
+    __slctx.status(reason,'Эволюция готова. Жду видимый стартовый запас '..tostring(__slctx.CONFIG.EvolutionMinimumBank or 0)..' инвесторов; rebirth не делаю.')
     if __slctx.now()-(r.reserveSince or __slctx.now())>=__slctx.CONFIG.EvolutionReserveWaitSeconds then
         -- More growth can improve the preview. Do not convert this timeout into a rebirth.
         r.evolutionReserveRetryAt=__slctx.now()+4
-        __slctx.Strategy.resumeGrowth(nil,'400-investor preview not reached; continue growing')
+        __slctx.Strategy.resumeGrowth(nil,'evolution preview not confirmed; continue growing')
     end
 end
 function __slctx.Strategy.halo()

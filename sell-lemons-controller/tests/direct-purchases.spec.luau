@@ -7,6 +7,8 @@ local function fixture(mode)
     local function object(name,attrs,children)
         local o={Name=name,attrs=attrs or {},children=children or {},ClassName='Configuration'}
         function o:GetAttribute(n)return self.attrs[n]end
+        function o:GetAttributes()return table.clone(self.attrs)end
+        function o:GetChildren()local t={};for _,v in pairs(self.children)do t[#t+1]=v end;return t end
         function o:FindFirstChild(n)return self.children[n]end
         function o:IsA(n)return self.ClassName==n end
         function o:IsDescendantOf(p)return self.Parent==p end
@@ -201,3 +203,12 @@ do
     c.step();assert(c.S.counts.buy==1)
 end
 print('PASS resume reconciles late direct receipt before new Powers/Buy work; unknown result sends nothing')
+do
+    local c,v,p,l,calls=fixture('ok');local rem=assert(c.DirectPurchases.remaining())
+    local expected=c.UpgradeMath.add(c.GameBalance.PurchasePrices.Juicer,c.GameBalance.PurchasePrices.CupStand)
+    assert(rem.count==2 and math.abs(c.BN.log(rem.cost)-expected)<1e-10 and #calls==0)
+    l.attrs.CupStand=true;assert(c.DirectPurchases.remaining().count==1)
+    l.attrs.Juicer=true;rem=c.DirectPurchases.remaining();assert(rem.count==0 and rem.cost.m==0)
+    l.attrs.Juicer='invalid';assert(c.DirectPurchases.remaining()==nil)
+end
+print('PASS exact full-remainder cost includes locked purchases, uses verified prices, updates receipts and rejects malformed ledger')

@@ -163,7 +163,7 @@ return function(ctx)
         local function allowed(before)
             if not before then return false,'RESET_DATA_UNAVAILABLE' end
             if kind=='halo'then return before.ready,'HALO_NOT_READY'end
-            local ready,reason=ctx.Core.evolutionGuard(before,ctx.CONFIG.TabletReserve)
+            local ready,reason=ctx.Core.evolutionGuard(before,ctx.CONFIG.EvolutionMinimumBank)
             if not ready then return false,reason end
             if ctx.HaloRun and ctx.HaloRun.deferEvolution then
                 local hold,reason=ctx.HaloRun.deferEvolution(true);if hold then return false,reason end

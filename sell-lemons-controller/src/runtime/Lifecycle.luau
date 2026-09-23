@@ -58,6 +58,7 @@ function __slctx.API.start()
         h.book.scaleRevision=oldBook.scaleRevision
         __slctx.HaloPlan.copyExtras(oldBook,h.book,__slctx.CONFIG);h.economy=nil
         h.mode='PREPARE';h.finish=nil;h.forecast=nil;h.incomeSnapshot=nil;h.lastPlan=-math.huge;h.haloRead=nil
+        h.goalFinish=nil;h.goalForecast=nil;h.nextGoalRead=nil;h.nextGoalForecast=nil
         h.lastReview=__slctx.now();h.nextReview=nil;h.wall=nil;h.powerScan=nil;h.powerAttempt=nil;h.remainingKey=nil;h.lastQuoteSignature=nil
     end
     __slctx.S.route.cleanRun=false;__slctx.S.route.frontierTrace=nil;__slctx.S.route.rewardSamples={}
@@ -114,7 +115,7 @@ for eventName,focused in pairs({WindowFocused=true,WindowFocusReleased=false}) d
 end
 __slctx.S.panel=__slctx.panel;__slctx.S.panelFrame=__slctx.frame;__slctx.S.panelVisibilityVersion=0
 __slctx.panel.Parent=__slctx.gui
-__slctx.log('LOADED','v4.0.15-dev; direct upgrades/Powers/Buy/Rebirth/Evolution/Halo; reset protocol identities verified before use; guarded GUI fallback if changed.')
+__slctx.log('LOADED','v4.0.16-dev; direct upgrades/Powers/Buy/Rebirth/Evolution/Halo; reset protocol identities verified before use; guarded GUI fallback if changed.')
 if __slctx.CONFIG.DirectUpgrades then
     local ok,report=pcall(__slctx.API.directReport)
     if ok then for line in report:gmatch('[^\n]+')do print(line)end

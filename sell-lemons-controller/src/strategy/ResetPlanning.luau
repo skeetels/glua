@@ -324,7 +324,7 @@ end
 function __slctx.Strategy.resetPolicyKey()
     return table.concat({tostring(__slctx.S.resetEnabled),tostring(__slctx.CONFIG.AutoRebirth),tostring(__slctx.CONFIG.AutoEvolution),
         tostring(__slctx.CONFIG.AutoInvestorPowers),tostring(__slctx.CONFIG.CapabilityRebirth),
-        tostring(__slctx.CONFIG.TabletReserve),tostring(__slctx.CONFIG.PowerMaxEpochFraction),tostring(__slctx.CONFIG.ConstructionPolicy)},'|')
+        tostring(__slctx.CONFIG.TabletReserve),tostring(__slctx.CONFIG.EvolutionMinimumBank),tostring(__slctx.CONFIG.GoalDirectedProgression),tostring(__slctx.CONFIG.PowerMaxEpochFraction),tostring(__slctx.CONFIG.ConstructionPolicy)},'|')
 end
 function __slctx.Strategy.resetReceiptKey()
     local out={}
@@ -403,6 +403,10 @@ function __slctx.Strategy.validateResetIntent(inv)
         local q=__slctx.readBuy() or r.buyQuote
         if not q or not q.cost or not state.cash then ok=false;why='BUILD_QUOTE_NOT_VERIFIED'
         elseif __slctx.BN.cmp(state.cash,q.cost)>=0 then ok=false;why='BUILD_TARGET_FUNDED_DURING_NAVIGATION' end
+    end
+    if ok and intent.detail and intent.detail.authorization=='next-evolution-prefix' then
+        if __slctx.GoalDirector then ok,why=__slctx.GoalDirector.validate(inv)
+        else ok=false;why='GOAL_DIRECTOR_UNAVAILABLE' end
     end
     if not ok then __slctx.Strategy.cancelResetIntent(why);return false,why end
     intent.validations=intent.validations+1

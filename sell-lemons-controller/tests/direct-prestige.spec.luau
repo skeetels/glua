@@ -228,3 +228,13 @@ for _,stage in ipairs({'selection','ready-delay','dispatch'})do
     assert(c.S.running and not c.S.actionPending and not r.directResetUnresolved,'economic veto is not an error or unresolved reset')
 end
 print('PASS H35/E6 trial reversal vetoes real direct Evolution selection, ready delay and final dispatch without GUI or a request')
+do
+    local c,v,l,r,calls=directFixture('evolve','ok')
+    -- Exact total just above E5 target, bonus ten investors, below old 400 gate.
+    local target=17.7+13.6*5
+    v.attrs.Cash=nil;v.attrs.CashSpent=nil;v.attrs.InvestorsSpent=nil
+    v.attrs.Investors=target+math.sqrt(10/(500*target))
+    assert(c.readEvolution().ready and c.BN.number(c.readEvolution().bonus)<11)
+    assert(c.doReset('evolve') and #calls==1 and c.S.counts.evolve==1)
+end
+print('PASS real direct Evolution dispatcher accepts fresh ready ten-investor start without 400-investor wait')

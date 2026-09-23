@@ -30,4 +30,26 @@ return function(ctx)
         local bonus=excess>0 and math.log10(500*target)+2*math.log10(excess) or nil
         return progress,bonus,target,total
     end
+    P.add=add
+    -- Required cumulative cash production, using the verified game formula.
+    -- Solve in log space: ordinary exponentiation overflows long before H77.
+    -- -inf means the bank already meets the target, nil means invalid input.
+    function P.evolutionCash(index,investors,investorsSpent,minimum)
+        if type(index)~='number' or index<0 or index%1~=0 then return nil end
+        local target=17.7+13.6*index
+        target=target+math.sqrt(math.max(0,minimum or 0)/(500*target))
+        local bank=add(investors,investorsSpent)
+        if bank and bank>=target then return -math.huge end
+        local function enough(earned)
+            local total=add(bank,P.reward(earned,nil,investors,investorsSpent))
+            return total and total>=target
+        end
+        local lo,hi=-1000,math.max(100,target/POWER+CASH_FACTOR+2)
+        if not enough(hi) then return nil end
+        for _=1,64 do
+            local mid=(lo+hi)*.5
+            if enough(mid) then hi=mid else lo=mid end
+        end
+        return hi
+    end
 end

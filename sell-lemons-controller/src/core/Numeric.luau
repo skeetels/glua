@@ -122,7 +122,7 @@ function Core.evolutionGuard(evo,minimum)
     if not evo.bonusVisible or not evo.bonus or not evo.bonusIsInvestors then
         return false,'EVOLUTION_BONUS_UNKNOWN'
     end
-    if BN.cmp(evo.bonus,BN.new(minimum or 400))<0 then return false,'WAIT_400_INVESTORS' end
+    if BN.cmp(evo.bonus,BN.new(minimum or 0))<0 then return false,'EVOLUTION_MINIMUM_BANK' end
     return true,'EVOLUTION_BUDGET_READY'
 end
 function Core.rebirthGuard(investors,reward,age,config)

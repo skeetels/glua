@@ -340,6 +340,7 @@ end
 function __slctx.HaloRun.deferEvolution(refresh)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if r.endPurchased or r.completionSeen then return true,'HALO_COMPLETION_TAKES_PRIORITY' end
+    if __slctx.GoalDirector and __slctx.GoalDirector.finish() then return true,'FINISH_CASH_FUNDED' end
     if refresh then __slctx.HaloRun.plan(true)end
     if h.mode=='FINISH' then return true,'FINISH_ROUTE_PROTECTED' end
     local q=__slctx.readBuy and __slctx.readBuy();local money=__slctx.cash()
@@ -402,6 +403,9 @@ function __slctx.HaloRun.deferEvolution(refresh)
         trial.expiryLogged=true;__slctx.HaloRun.noteEvolutionDecision('TRIAL_EXPIRED',q)
     end
     if routeTooLong then return false,'EVOLUTION_CURRENT_ROUTE_TOO_LONG' end
+    if __slctx.CONFIG.GoalDirectedProgression and __slctx.CONFIG.DirectPrestige then
+        return false,'EVOLUTION_READY_WITHOUT_PROVEN_FINISH'
+    end
     if not q or not q.cost or not money then
         if __slctx.CONFIG.DirectPurchases and __slctx.readBuy then return true,'EVOLUTION_WAIT_CURRENT_BUY_DATA' end
         return false
@@ -597,6 +601,7 @@ function __slctx.HaloRun.boot()
             ..'; donor investor='..__slctx.CONFIG.ExpectedInvestorBonus..'; time x'..__slctx.CONFIG.ExpectedTimeMultiplier
             ..'; observed income already contains actual bonuses')
     end
+    if __slctx.GoalDirector and __slctx.GoalDirector.tick(true) then return end
     if r.bootTablet then
         local _,why=__slctx.ensureTablet();r.bootTablet=false
         if not __slctx.live()then return end
@@ -707,7 +712,8 @@ end
 function __slctx.HaloRun.performReset(inv,goal,detail,context)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if h.mode=='FINISH' or (r.evo and r.evo.ready and not (detail and detail.comparedEvolution and detail.finishAfterReset)) then return false end
-    local reason=goal and context.plannedSpend.m>0 and 'RESET_FOR_UPGRADE_STACK' or 'RESET_FOR_NET_PRODUCTION'
+    local reason=detail and detail.authorization=='next-evolution-prefix' and 'REBIRTH_TO_EVOLUTION'
+        or (goal and context.plannedSpend.m>0 and 'RESET_FOR_UPGRADE_STACK' or 'RESET_FOR_NET_PRODUCTION')
     r.lastDecision=reason
     r.capabilityOnly=true;r.resetPowerPlan=reason=='RESET_FOR_UPGRADE_STACK' and goal or nil
     __slctx.Strategy.rememberResetIntent(inv,context,reason,__slctx.Planner.netInvestorGain(inv,context.plannedSpend),detail)
@@ -771,7 +777,7 @@ function __slctx.HaloRun.review()
             __slctx.HaloRun.resume('BUY','продолжаю текущую базу; эволюция отложена');return
         end
     end
-    if __slctx.CONFIG.AutoRebirth and __slctx.S.resetEnabled and not (r.evo and r.evo.ready) and inv.investors.m==0 and inv.ready and __slctx.BN.cmp(inv.reward,__slctx.BN.new(__slctx.CONFIG.TabletReserve))>=0 then
+    if __slctx.CONFIG.AutoRebirth and __slctx.S.resetEnabled and not (__slctx.GoalDirector and __slctx.GoalDirector.ownsRebirth()) and not (r.evo and r.evo.ready) and inv.investors.m==0 and inv.ready and __slctx.BN.cmp(inv.reward,__slctx.BN.new(__slctx.CONFIG.TabletReserve))>=0 then
         local ctx={rate=__slctx.Strategy.rate(),plannedSpend=__slctx.BN.new(0)}
         local d={cost=__slctx.CONFIG.InitialFullLayoutSeconds,authorization='first-bank-30',restoreQuality='first investor bank'}
         __slctx.HaloRun.performReset(inv,nil,d,ctx);return
@@ -781,7 +787,7 @@ function __slctx.HaloRun.review()
         r.powerReturn=destination;r.powerPurchasePlan=goal;r.capabilityOnly=nil
         __slctx.Strategy.phase('POWERS','покупаю конкретную доступную пачку, затем возвращаюсь к проходу');return
     end
-    if __slctx.CONFIG.AutoRebirth and __slctx.S.resetEnabled and inv.ready and not r.recovery and inv.perInvestor then
+    if __slctx.CONFIG.AutoRebirth and __slctx.S.resetEnabled and not (__slctx.GoalDirector and __slctx.GoalDirector.ownsRebirth()) and inv.ready and not r.recovery and inv.perInvestor then
         local yes,reason,gain,detail,ctx=__slctx.HaloRun.resetForecast(inv,goal)
         r.gain=gain;r.lastDecision=reason;r.lastResetEstimate=detail;h.lastCompare=detail
         local choice=__slctx.HaloRun.routeEvolutionChoice(inv,r.evo,goal,yes,detail)
@@ -1087,6 +1093,9 @@ function __slctx.Strategy.waitGrowth()return __slctx.HaloRun.wait()end
 function __slctx.Strategy.maybeObjectiveReview()return false end
 local previousValidate=__slctx.Strategy.validateResetIntent
 function __slctx.Strategy.validateResetIntent(inv)
+    if __slctx.GoalDirector and __slctx.GoalDirector.finish()then
+        __slctx.Strategy.cancelResetIntent('FINISH_CASH_FUNDED');return false,'FINISH_CASH_FUNDED'
+    end
     if __slctx.HaloRun.state().mode=='FINISH'then __slctx.Strategy.cancelResetIntent('FINISH_ROUTE_LOCKED');return false,'FINISH_ROUTE_LOCKED'end
     return previousValidate(inv)
 end
@@ -1134,11 +1143,19 @@ function __slctx.HaloRun.progress()
     audit.economy=v
     local halo=h.book.halo
     local heading='Halo '..tostring(halo or '?')..' → '..tostring(halo and halo+1 or '?')..' · E'..tostring(r.evo and r.evo.index or '?')..' · '..h.mode
+    local goal=r.goalDecision;local goalDetail=goal and goal.detail
+    local names={EVOLVE_READY='перейти к следующей эволюции',REBIRTH_TO_EVOLUTION='rebirth для быстрой эволюции',
+        GROW_TO_EVOLUTION='набрать следующую эволюцию',FINISH_CASH_FUNDED='завершить Halo',FINISH_ATTEMPT='проверить короткий финал'}
+    if goal and names[goal.choice] then heading=heading..'\nЦель: '..names[goal.choice]end
     if h.resetInFlight or (__slctx.S.resetSession and __slctx.S.resetSession.isReset) then
         return heading..'\nСброс выполняется — предыдущий прогноз приостановлен.\n'..tostring(__slctx.S.status),0,
             'Жду подтверждённое новое состояние; старый доход не используется.',audit
     end
     if r.endPurchased or r.completionSeen then return heading..'\nThe End куплен. Проверяю Ascend.',1,'Финальный сброс, не промежуточный rebirth.',audit end
+    if h.goalFinish then
+        return heading..'\nДеньги покрывают '..tostring(h.goalFinish.count)..' оставшихся покупок.',1,
+            'Стоимость проверена по состоянию базы; резерв сохраняется до финала.',audit
+    end
     if not v or not v.known then return heading..'\nСчитываю фактический доход и цены; покупки продолжаются.',0,'Прогноз ещё не подтверждён; это не доля времени.',audit end
     local current=__slctx.BN.format(v.currentRate);local required=__slctx.BN.format(v.requiredRate)
     local mode=v.levelProjection and 'с расчётной платной прокачкой и бонусами' or (v.routeScenario and 'с оставшимися бонусами базы' or 'без ещё не подтверждённых бонусов')
@@ -1157,7 +1174,11 @@ function __slctx.HaloRun.progress()
     local bonus=v.factors and v.factors.bonus or __slctx.CONFIG.ExpectedInvestorBonus
     local details=(v.routeScenario and 'Сценарий с будущими бонусами (log): ' or 'Шкала силы (log): ')..string.format('%.1f%%',bar*100)
         ..' · доход уже включает x'..__slctx.CONFIG.ExpectedTimeMultiplier..' и текущие бонусы'
-    if v.rebirth then
+    if goalDetail and __slctx.GoalDirector and __slctx.GoalDirector.ownsRebirth() then
+        details=details..'\nДо эволюции: сейчас ≈ '..__slctx.HaloRun.formatDuration((goalDetail.direct<math.huge and __slctx.BN.new(goalDetail.direct) or nil))
+            ..'; через rebirth ≈ '..__slctx.HaloRun.formatDuration((goalDetail.reset<math.huge and __slctx.BN.new(goalDetail.reset) or nil))
+            ..'. Оценка по наблюдаемому доходу.'
+    elseif v.rebirth then
         details=details..'\nПосле rebirth и восстановления: '..__slctx.BN.format(v.rebirth.currentRate)..'/с'
             ..(v.rebirth.ready and ' — остаток обеспечен в модели восстановленной базы'
                 or v.rebirth.scenarioReady and ' — финал возможен только в сценарии будущих бонусов' or ' — подготовка ещё нужна')
@@ -1187,6 +1208,7 @@ function __slctx.HaloRun.step()
     __slctx.Strategy.sampleIncome();__slctx.HaloRun.peekProgress();__slctx.Strategy.diagnosticSample()
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if r.endPurchased or r.completionSeen then __slctx.Strategy.phase('HALO','The End подтверждён; проверяю Ascend')end
+    if __slctx.GoalDirector and __slctx.GoalDirector.tick(false) then return end
     if not (r.endPurchased or r.completionSeen) and __slctx.HaloRun.objectiveWatch()then return end
     if r.phase=='BOOT'then __slctx.HaloRun.boot()
     elseif r.phase=='BUY'then __slctx.HaloRun.buy()

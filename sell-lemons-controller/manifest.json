@@ -1,5 +1,5 @@
 {
-  "version": "4.0.15-dev",
+  "version": "4.0.16-dev",
   "entry": [
     "src/config.luau",
     "src/core/Numeric.luau",
@@ -9,6 +9,7 @@
     "src/data/Catalogue.luau",
     "src/core/HaloPlanner.luau",
     "src/core/EconomyPlanner.luau",
+    "src/core/GoalPlanner.luau",
     "src/core/ObservationStore.luau",
     "src/core/RecoveryPolicy.luau",
     "src/runtime/ClientContext.luau",
@@ -36,6 +37,7 @@
     "src/strategy/HaloController.luau",
     "src/adapters/DirectPurchases.luau",
     "src/adapters/DirectPrestige.luau",
+    "src/strategy/GoalDirector.luau",
     "src/ui/Progress.luau",
     "src/ui/Panel.luau",
     "src/runtime/Diagnostics.luau",

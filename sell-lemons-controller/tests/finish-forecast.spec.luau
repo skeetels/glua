@@ -90,13 +90,14 @@ test('uncertain rebirth scenario does not suppress a ready evolution',function()
     h.economy.scenarioReady=false;h.economy.rebirth={ready=false,scenarioReady=true}
     assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=5},nil,true,{})=='EVOLVE')
 end)
-test('ready evolution does not interrupt funded construction after rebirth',function()
+test('legacy local construction grace is retained when goal director is disabled',function()
     local c,s,r,h,B=fixture()
     s.money=B.new(1,120);s.rate=B.new(1,119)
     local q={id='Walls',name='Walls',cost=B.new(6.913,59),available=true}
     c.readBuy=function()return q end
     r.evo={ready=true,index=6};r.runBuyCount=56;r.spent=B.new(0)
     r.frontierRecovery={completePrefix=true,frontierBuys=380,frontierDone=false}
+    c.CONFIG.GoalDirectedProgression=false
     assert(c.HaloRun.routeEvolutionChoice({},r.evo,nil,false,{})=='CONTINUE')
     c.Strategy.refreshResetBuy=function()r.buyQuote=q;return true end
     c.HaloRun.observeQuote=function()end;c.HaloRun.plan=function()end
@@ -105,8 +106,8 @@ test('ready evolution does not interrupt funded construction after rebirth',func
     c.HaloRun.review()
     assert(r.phase=='BUY' and s.resets==0,'live ready-E/rebuilding/funded-Buy trigger must keep the current base')
 end)
-test('near Buy waits once; minor upgrades and rereads cannot extend the deadline',function()
-    local c,s,r,h,B=fixture();s.money=B.new(0);s.rate=B.new(1)
+test('legacy near Buy waits once; minor upgrades and rereads cannot extend the deadline',function()
+    local c,s,r,h,B=fixture();c.CONFIG.GoalDirectedProgression=false;s.money=B.new(0);s.rate=B.new(1)
     c.readBuy=function()return {id='last-gate',cost=B.new(4*c.CONFIG.CatalogueIncomeMargin),available=false}end
     assert(c.HaloRun.deferEvolution(false))
     local deadline=h.evolutionBuyGate.deadline;s.time=deadline+1
@@ -195,8 +196,8 @@ test('H26 E2 report: distant Halo beats a near or funded local purchase, regardl
     assert(r.phase=='EVOLVE_RESERVE' and s.resets==0,'review selects evolution; execution still requires the normal reset guards')
 end)
 
-test('unknown-route construction grace is shared across changing quotes and funded buys',function()
-    local c,s,r,h,B=fixture();s.money=B.new(10)
+test('legacy unknown-route grace is shared across changing quotes and funded buys',function()
+    local c,s,r,h,B=fixture();c.CONFIG.GoalDirectedProgression=false;s.money=B.new(10)
     local q={id='cheap-1',name='A wall',cost=B.new(1),available=true}
     c.readBuy=function()return q end
     assert(c.HaloRun.deferEvolution(false))

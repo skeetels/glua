@@ -248,6 +248,7 @@ function __slctx.Strategy.afterReset(kind,before)
     r.capabilityOnly=nil;r.capabilityBackoff=nil;r.buyBurstCount=0;r.powerReturn=nil;r.runObservedAt=__slctx.now()+__slctx.CONFIG.AfterResetWait
     r.growthSamples={};r.reviewReturn=nil;r.boostQuote=nil;r.macroPlan=nil;r.lastStrategicReview=__slctx.now()
     r.schema28=true;r.cleanRun=true;r.frontierRecovery=r.recovery
+    r.goalTrace=nil;r.goalGrowth=nil;r.goalDecision=nil
     r.frontierTrace=nil;r.runSpent=__slctx.BN.new(0);r.runServiceSeconds=0;r.runMenuSeconds=0;r.runBuyCount=0
     r.passiveRows={};r.uiObservation=nil;r.rewardSamples={};r.rewardCurve=nil
     r.buildStarted=__slctx.now()+__slctx.CONFIG.AfterResetWait;r.lastBuildAt=nil;r.lastBuildBuys=0;r.buildMilestone=nil

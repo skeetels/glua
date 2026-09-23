@@ -34,11 +34,11 @@ function __slctx.doReset(kind)
         button=__slctx.g(__slctx.paths.investors..'/Body/Rebirth')
     elseif kind=='evolve' then
         before,err=__slctx.readEvolution()
-        local permitted,why=__slctx.Core.evolutionGuard(before,__slctx.CONFIG.TabletReserve)
-        if not permitted then __slctx.status(why,'Эволюция отложена: нужен видимый бонус не менее '..__slctx.CONFIG.TabletReserve..' инвесторов.');return false end
+        local permitted,why=__slctx.Core.evolutionGuard(before,__slctx.CONFIG.EvolutionMinimumBank)
+        if not permitted then __slctx.status(why,'Эволюция отложена: нужен видимый бонус не менее '..tostring(__slctx.CONFIG.EvolutionMinimumBank or 0)..' инвесторов.');return false end
         if not __slctx.sleep(__slctx.CONFIG.EvolutionReadyDelay) then return false end
         before,err=__slctx.readEvolution()
-        if not __slctx.Core.evolutionGuard(before,__slctx.CONFIG.TabletReserve) then return false end
+        if not __slctx.Core.evolutionGuard(before,__slctx.CONFIG.EvolutionMinimumBank) then return false end
         button=__slctx.g(__slctx.paths.evolution..'/Body/Evolve')
     else
         before,err=__slctx.readHalo()

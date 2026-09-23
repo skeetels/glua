@@ -129,6 +129,22 @@ return function(ctx)
     local function purchased(s,key)
         local p=child(s.root,'Purchases');return p and attr(p,key)==true
     end
+    function A.remaining()
+        local s,why=D.state();if not s then return nil,why end
+        local ledger=child(s.root,'Purchases');if not ledger then return nil,'PURCHASE_STATE_UNAVAILABLE' end
+        local bought=ledger:GetAttributes()
+        for _,o in ipairs(ledger:GetChildren())do if o:IsA('BoolValue')then bought[o.Name]=o.Value end end
+        local cost=-math.huge;local count=0
+        for _,key in ipairs(ctx.GameBalance.PurchaseOrder)do
+            if bought[key]~=true then
+                if bought[key]~=nil and bought[key]~=false then return nil,'PURCHASE_LEDGER_INVALID' end
+                local price=ctx.GameBalance.PurchasePrices[key]
+                if type(price)~='number' or price~=price or price==math.huge then return nil,'PURCHASE_PRICE_UNKNOWN' end
+                cost=M.add(cost,price+s.shift);count=count+1
+            end
+        end
+        return {cost=M.bn(cost),count=count,snapshot=s,cash=M.bn(s.cash),source='verified purchase ledger'}
+    end
     local function purchaseMap(s)
         if A.mapOwner~=s.own or not A.map or ctx.now()-(A.mapAt or 0)>2 then
             local map={}
@@ -225,6 +241,7 @@ return function(ctx)
                 local reserve=c.priceLog;local h=ctx.HaloRun.state()
                 -- A funded final catalogue keeps its full reservation. In normal
                 -- construction reserve this Buy, then share the rest among stands.
+                if h.goalFinish and h.goalFinish.cost then reserve=math.max(reserve,ctx.BN.log(h.goalFinish.cost))end
                 if h.mode=='FINISH' and h.remaining and h.remaining.cost then
                     reserve=math.max(reserve,ctx.BN.log(h.remaining.cost))
                 end

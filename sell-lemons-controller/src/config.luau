@@ -74,7 +74,12 @@ __slctx.CONFIG = {
     ResetsEnabledAtStart = true,
     AllowInputPair = true,
     AutoRebirth = true, AutoEvolution = true, AutoHalo = true,
-    TabletReserve = 400,
+    TabletReserve = 400, -- Tablet purchase budget, not a prerequisite for evolution.
+    EvolutionMinimumBank = 0, -- A ready evolution may start with any observed bonus.
+    GoalDirectedProgression = true,
+    GoalReviewSeconds = 0.5,
+    GoalForecastSeconds = 1,
+    GoalReplayIncomeConfidence = 0.6,
     MaxWaitSeconds = 5, -- One non-renewable budget per quoted base target; buy as soon as funded.
     EconomicPlanning = true,
     CapabilityRebirth = true,
