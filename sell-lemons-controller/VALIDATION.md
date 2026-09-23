@@ -5,7 +5,7 @@ Source: supplied Sell Lemons Autofarm 3.3.3. Migrated top-level lexical bindings
 Passed:
 
 - Deterministic `tools/build.py --check` against source/integrity manifest.
-- Luau bytecode compilation of 39 files: 35 source components, two loaders, controller and standalone diagnostic.
+- Luau bytecode compilation of 41 files: 35 controller components, one standalone capture source, two loaders, controller and two standalone diagnostics.
 - 12 numeric/catalogue/observation/recovery-policy scenarios.
 - 8 supervisor scenarios, including repeated +1 work requesting a timely review without abandoning a partial pass, cancellation of recovery by manual pause, and no auto-resume during ambiguous transactions.
 - Full component initialization, diagnostic report, missing-data handling, idempotent unload, and listener cleanup in a minimal mock engine.
@@ -14,6 +14,7 @@ Passed:
 - 4 data-inspection fixture groups: formatted cash and exclusions, fresh resampling, explicit limits, and missing-root handling.
 - 4 rebirth-confirmation fixture groups: disabled origin with a ready matching dialog, countdown waiting, changed economy cancellation, and rejection of mismatched/stale/undispatched sessions. These are a simulated regression sequence, not a successful live rebirth.
 - 8 replicated-state fixture groups using the numeric values observed in the live log: independent encoding calibration, hidden updates and huge exponents, bank isolation, reset invalidation, unknown zero sentinel, linear encoding/mismatch revocation, ownership loss, and absent attributes.
+- 6 standalone action-capture fixture groups: absent/broken capabilities, exactly-once passthrough with nil arguments/results, scope/cycle/redaction limits, original errors/yields, ownership loss/manual cleanup, timeout/later-hook preservation. Startup sends no game remote. Real Xeno hook support and visibility of game-script calls remain untested.
 
 Observed in the user's current Roblox player log on September 23 (UTC+5):
 
@@ -23,6 +24,8 @@ Observed in the user's current Roblox player log on September 23 (UTC+5):
 - 05:22:02: controller opened a rebirth confirmation then cancelled the intent with REBIRTH_BUTTON_LOCKED. The origin readiness check was reused while a modal owned input. The patch uses the matching, ready confirmation button at this stage while retaining fresh bank/reward, intent, and evolution guards. In-game retesting of this patch is still required.
 - 05:32:22 and 05:32:25: standalone probe identified the local base via Owner as Workspace/Tycoon2. Values/Values contained Evolution=5, Ascension=23, Rebirths=5, TotalRebirths=1099, TotalEvolves=161. Raw Cash changed from 208.3515191634644 to 208.3551277583843. Raw Investors stayed 65.63493889154753; eight stand-level attributes were present. This establishes replicated candidates and a changing Cash attribute; it does not establish the encoding or pending reset rewards. Both scans reported truncation in broader branches.
 - 05:32:17: original running controller logged UNLOADED. The two diagnostic samples did not restart it or verify the rebirth patch.
+- 05:42:45: 4.0.1-dev reported Cash=log10 matching raw 208.7737529124466 and GUI 5.939 e208. At 05:43:05 Investors=log10 matched raw 65.63493889154753 and GUI 4.315 e65. This verifies observed calibrations in the log, not the entire adapter.
+- 05:42:46 through 05:42:48: Xeno v1.3.60 supplied no firesignal candidate, getconnections probes failed, and VirtualInput succeeded. Purchases were therefore still using the GUI path. Headless actions and parallel upgrade dispatch have not been implemented.
 
 Not passed / not performed:
 
