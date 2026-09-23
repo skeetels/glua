@@ -379,7 +379,7 @@ function __slctx.Strategy.validateResetIntent(inv)
     if not intent then return false,'RESET_INTENT_MISSING' end
     local state=__slctx.Strategy.resetIntentState(inv)
     local ok,why=__slctx.Planner.validateResetIntent(intent,state,__slctx.CONFIG)
-    local repeatReset=intent.detail and intent.detail.authorization=='repeat-ready-rebirth'
+    local repeatReset=intent.detail and intent.detail.authorization=='adaptive-stand-rebirth'
     -- Newly discovered goal readiness/near-end progress overrides the old plan.
     if ok and __slctx.CONFIG.AutoEvolution and not repeatReset then
         local total=__slctx.Planner.totalMinimum(inv,r.spent)

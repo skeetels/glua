@@ -217,7 +217,7 @@ return function(ctx)
         ctx.log(done and 'DIRECT_ACTION_RECEIPT' or 'DIRECT_ACTION_UNRESOLVED',c.source..' '..c.name..'; no GUI; '..tostring(rec.error or 'replicated state checked'))
         return done,done and nil or 'DIRECT_OUTCOME_UNRESOLVED',rec
     end
-    function A.powerPurchase(item)
+    function A.powerPurchase(item,tactical)
         local remote
         local function validate()
             local wallet,s=A.wallet();if not wallet or not same(item.snapshot,s)then return false end
@@ -225,7 +225,8 @@ return function(ctx)
             remote=child(child(s.own,'Remotes'),'UpgradePowerLevel')
             return ctx.CONFIG.AutoInvestorPowers and level==item.level and permanent==item.permanent
                 and remote and remote:IsA('RemoteFunction') and math.log10(ctx.GameBalance.Powers[item.name].Prices[level+1])==item.priceLog
-                and ctx.Planner.powerBudgetAllows(item.price,wallet.investors,r.powerUsed,r.powerBase,ctx.CONFIG)
+                and (tactical and item.name=='UpgradeStack' and ctx.BN.cmp(wallet.investors,item.price)>=0 and tactical()
+                    or not tactical and ctx.Planner.powerBudgetAllows(item.price,wallet.investors,r.powerUsed,r.powerBase,ctx.CONFIG))
         end
         return execute(item,validate,function()remote:InvokeServer(item.name,1)end,function()return A.powerProof(item)end)
     end

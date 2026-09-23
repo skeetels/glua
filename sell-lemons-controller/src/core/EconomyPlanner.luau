@@ -890,8 +890,12 @@ function Planner.validateResetIntent(intent,state,config)
     if state.unresolved then return false,'UNRESOLVED_PURCHASE' end
     if state.evoReady and not (intent.preferRebirthToEvolution33 and old.evoReady and old.evolution==state.evolution) then return false,'EVOLUTION_TAKES_PRIORITY' end
     if state.endReached then return false,'HALO_TAKES_PRIORITY' end
-    local repeatReset=intent.detail and intent.detail.authorization=='repeat-ready-rebirth'
+    local repeatReset=intent.detail and intent.detail.authorization=='adaptive-stand-rebirth'
     if repeatReset and not config.RepeatRebirth then return false,'REPEAT_REBIRTH_DISABLED' end
+    if repeatReset and (intent.detail.choice~='REBIRTH' or not intent.detail.score or intent.detail.score<=0
+        or intent.detail.wait~=0 or not intent.detail.candidate or intent.detail.candidate.kind~='NONE') then
+        return false,'ADAPTIVE_DECISION_REQUIRED'
+    end
     local goalReset=repeatReset or intent.detail and intent.detail.authorization=='next-evolution-prefix'
     if state.recovery and not goalReset then return false,'REBUILD_BEFORE_NEXT_REBIRTH' end
     if not state.ready then return false,'REBIRTH_BUTTON_LOCKED' end

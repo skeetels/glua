@@ -166,11 +166,16 @@ do
     ctx.GoalPlanner.compare=originalCompare;ctx.DirectUpgrades.cards=originalCards
 end
 print('PASS H82/E4 reported BOOT and F6 resume execute real goal comparison without nil arithmetic or an unauthorized reset')
--- User's requested mode is a repeated ready-rebirth loop, including an attached
--- partial cycle. Exercise real director -> lease -> remote -> receipt -> cleanup,
--- with no intervening base, power, tablet or stand preparation.
+-- Adaptive economically selected resets still use the full real lease, RPC,
+-- receipt and cleanup chain. Exact stand/power allocation is exercised by
+-- adaptive-route.spec; here funded upgrades are absent and the earned reward
+-- strongly dominates the very slow current income.
 do
     ctx.CONFIG.RepeatRebirth=true;ctx.HaloRun.deferEvolution=actualDeferEvolution
+    ctx.UpgradeMath.bn=ordinaryBN
+    local stateBefore=ctx.DirectUpgrades.state
+    ctx.DirectUpgrades.state=function()local s=stateBefore();s.stackLevel=4;s.cap=math.huge;return s end
+    ctx.DirectUpgrades.allocate=function()return {} end
     local calls={rebirth=0,evolve=0,buy=0};local sleeps={}
     local oldBuy=ctx.HaloRun.buy
     ctx.HaloRun.buy=function()calls.buy=calls.buy+1 end
@@ -179,7 +184,7 @@ do
     ctx.Strategy.growUpgrades=function()error('repeat mode must not wait for a stand pass')end
     ctx.GoalDirector.forecast=function()error('repeat mode must not require a replay forecast')end
     ctx.DirectUpgrades.cards=function()return {{source='direct',path='direct/LemonStand',key='LemonStand',
-        name='Lemon Stand',income=ctx.BN.new(1.862,135),periodSeconds=1}}end
+        name='Lemon Stand',level=0,income=ctx.BN.new(1,30),periodSeconds=1}}end
     ctx.sleep=function(seconds)sleeps[#sleeps+1]=seconds;return ctx.S.running end
     for _,kind in ipairs({'Rebirth','Evolve'})do
         local remote=node(kind);remote.IsA=function(_,k)return k=='RemoteFunction'end
@@ -231,7 +236,7 @@ do
     assert(calls.buy>0 and calls.evolve==1 and calls.rebirth==3,'funded Halo must end the rebirth loop')
     ctx.HaloRun.buy=oldBuy
 end
-print('PASS repeat mode: three real rebirth receipts from partial startup without Buy/Powers/stand passes, reward wait, faster settle, evolution priority and funded-Halo handoff')
+print('PASS three profitable adaptive resets through real lease/RPC/receipt/cleanup, no forced base preparation, reward wait, evolution and funded-Halo priority')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)

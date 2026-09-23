@@ -712,7 +712,7 @@ end
 function __slctx.HaloRun.performReset(inv,goal,detail,context)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
     if h.mode=='FINISH' or (r.evo and r.evo.ready and not (detail and detail.comparedEvolution and detail.finishAfterReset)) then return false end
-    local reason=detail and detail.authorization=='repeat-ready-rebirth' and 'REPEAT_READY_REBIRTH'
+    local reason=detail and detail.authorization=='adaptive-stand-rebirth' and 'ADAPTIVE_REBIRTH'
         or detail and detail.authorization=='next-evolution-prefix' and 'REBIRTH_TO_EVOLUTION'
         or (goal and context.plannedSpend.m>0 and 'RESET_FOR_UPGRADE_STACK' or 'RESET_FOR_NET_PRODUCTION')
     r.lastDecision=reason
@@ -1147,7 +1147,7 @@ function __slctx.HaloRun.progress()
     local goal=r.goalDecision;local goalDetail=goal and goal.detail
     local names={EVOLVE_READY='перейти к следующей эволюции',REBIRTH_TO_EVOLUTION='rebirth для быстрой эволюции',
         GROW_TO_EVOLUTION='набрать следующую эволюцию',FINISH_CASH_FUNDED='завершить Halo',FINISH_ATTEMPT='проверить короткий финал',
-        REPEAT_READY_REBIRTH='повторять rebirth без стройки',WAIT_REBIRTH_REWARD='ждать награду rebirth без стройки',REBIRTH_DATA_WAIT='дождаться данных rebirth'}
+        REBIRTH='rebirth сейчас выгоднее подготовки стендов',POWER='купить выгодный UpgradeStack',STANDS='улучшить стенды параллельно',WAIT_REWARD='дать вырасти награде',WAIT_EVOLUTION='дождаться близкой эволюции',WAIT_REBIRTH_REWARD='ждать награду rebirth без стройки',REBIRTH_DATA_WAIT='дождаться данных rebirth'}
     if goal and names[goal.choice] then heading=heading..'\nЦель: '..names[goal.choice]end
     if h.resetInFlight or (__slctx.S.resetSession and __slctx.S.resetSession.isReset) then
         return heading..'\nСброс выполняется — предыдущий прогноз приостановлен.\n'..tostring(__slctx.S.status),0,
@@ -1159,8 +1159,8 @@ function __slctx.HaloRun.progress()
             'Стоимость проверена по состоянию базы; резерв сохраняется до финала.',audit
     end
     if __slctx.GoalDirector and __slctx.GoalDirector.repeating() and h.mode~='FINISH' and not h.repeatFinishAttempt then
-        return heading..'\nПовторные rebirth без прокачки базы.',0,
-            'Готовая эволюция — сразу. Награда rebirth: '..__slctx.BN.format(r.latestInvestors and r.latestInvestors.reward)
+        return heading..'\nВыбираю между стендами, UpgradeStack и rebirth.',0,
+            'Без обязательной стройки. Награда rebirth: '..__slctx.BN.format(r.latestInvestors and r.latestInvestors.reward)
                 ..'. Каждый сброс ждёт подтверждения.',audit
     end
     if not v or not v.known then return heading..'\nСчитываю фактический доход и цены; покупки продолжаются.',0,'Прогноз ещё не подтверждён; это не доля времени.',audit end

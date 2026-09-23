@@ -6,11 +6,11 @@ return function(ctx)
         CAPABILITY=true,CHECKPOINT=true,OBJECTIVE=true,WAIT_GROWTH=true,WAIT_CASH=true,REBIRTH_LOOP=true}
     function G.repeating()
         return ctx.CONFIG.RepeatRebirth and ctx.CONFIG.GoalDirectedProgression and ctx.CONFIG.DirectPrestige
-            and ctx.CONFIG.DirectPurchases and ctx.CONFIG.AutoRebirth and ctx.S.resetEnabled
+            and ctx.CONFIG.DirectPurchases and ctx.CONFIG.DirectUpgrades and ctx.CONFIG.AutoRebirth and ctx.S.resetEnabled
     end
     function G.repeatIntent()
         local intent=ctx.Strategy.route().resetIntent
-        return intent and intent.detail and intent.detail.authorization=='repeat-ready-rebirth'
+        return intent and intent.detail and intent.detail.authorization=='adaptive-stand-rebirth'
     end
     function G.settleSeconds()
         return G.repeating() and ctx.CONFIG.RepeatRebirthSettleSeconds or ctx.CONFIG.AfterResetWait
@@ -28,7 +28,10 @@ return function(ctx)
             ctx.log('GOAL_ROUTE',choice..'; E='..tostring(r.evo and r.evo.index)
                 ..'; continue='..tostring(detail and detail.direct)..'; rebirth='..tostring(detail and detail.reset)
                 ..'; prefix='..tostring(detail and detail.points)..'/'..tostring(detail and detail.totalPoints)
-                ..'; reward='..ctx.BN.format(detail and detail.reward))
+                ..'; reward='..ctx.BN.format(detail and detail.reward)
+                ..'; stack='..tostring(detail and detail.candidate and detail.candidate.tier)
+                ..'; units='..tostring(detail and detail.candidate and detail.candidate.units)
+                ..'; net log gain/s='..tostring(detail and detail.score)..'; wait='..tostring(detail and detail.wait))
         end
     end
     function G.forecast(inv)
@@ -83,30 +86,111 @@ return function(ctx)
             return false,'REBIRTH_DATA_UNAVAILABLE'
         end
         if not inv.ready or not inv.reward or inv.reward.m<=0 or not inv.investors then return false,'WAIT_REBIRTH_REWARD' end
-        -- Readiness is the game's normal reward gate. No gain target, full pass,
-        -- recovery, construction quote, income model or 400-investor prerequisite.
+        -- Readiness is necessary, not sufficient: G.choose and dispatch validation
+        -- must also prefer rebirth over stand preparation and continued income.
         if B.cmp(B.add(inv.investors,inv.reward),inv.investors)<=0 then return false,'WAIT_REBIRTH_REWARD' end
-        return true,'REPEAT_READY_REBIRTH'
+        return true,'FRESH_REBIRTH_REWARD'
+    end
+    function G.choose(inv)
+        local data,why=ctx.DirectPrestige.snapshot()
+        if not data then return nil,why end
+        local s=data.snapshot;local D=ctx.DirectUpgrades;local M=ctx.UpgradeMath;local B=ctx.BN
+        local cards=D.cards(s);local rate,n,total=ctx.Planner.sumRates(cards)
+        if not rate or rate.m<=0 or n~=total or total==0 then return nil,'WAIT_STAND_INCOME' end
+        local period=0
+        for _,c in ipairs(cards)do period=math.max(period,c.periodSeconds or 0)end
+        local candidates={{kind='NONE',rate=rate,seconds=0,period=period,spend=-math.huge}}
+        local oldMultiplier=B.add(B.new(1),B.mul(inv.investors,inv.perInvestor))
+        local cumulative=-math.huge
+        for tier=s.stackLevel,4 do
+            if tier>s.stackLevel then
+                if not ctx.CONFIG.AutoInvestorPowers then break end
+                cumulative=M.add(cumulative,math.log10(ctx.GameBalance.Powers.UpgradeStack.Prices[tier]))
+                if cumulative>(data.Investors or -math.huge)-1e-9 then break end
+            end
+            local virtual=table.clone(s);virtual.cap=({[0]=1,5,25,100,math.huge})[tier]
+            -- Allocate one parallel wave against ONE shared cash wallet.
+            local rows=D.allocate(virtual,cards)
+            if #rows>0 then
+                local byName={};for _,q in ipairs(rows)do byName[q.key]=q end
+                local afterRate=B.new(0);local units=0
+                for _,c in ipairs(cards)do
+                    local q=byName[c.key];local added=q and q.units or 0;units=units+added
+                    local factor=M.countMultiplier(c.key,c.level+1+added)-M.countMultiplier(c.key,c.level+1)
+                    afterRate=B.add(afterRate,B.mul(ctx.Planner.sourceRate(c),M.bn(factor)))
+                end
+                local bank=B.sub(inv.investors,M.bn(cumulative))
+                local multiplier=B.add(B.new(1),B.mul(bank,inv.perInvestor))
+                afterRate=B.mul(afterRate,B.div(multiplier,oldMultiplier))
+                candidates[#candidates+1]={kind=tier>s.stackLevel and 'POWER' or 'STANDS',tier=tier,rows=rows,
+                    rate=afterRate,spend=cumulative,period=period,units=units,snapshot=s,
+                    seconds=math.max(.05,ctx.Strategy.actionSeconds('upgrade'))
+                        +(tier-s.stackLevel)*math.max(.05,ctx.Strategy.actionSeconds('power'))}
+            end
+        end
+        local r=ctx.Strategy.route()
+        r.tacticalStarted=r.tacticalStarted or ctx.now()
+        local age=math.max(0,ctx.now()-r.tacticalStarted)
+        local setup=math.max(.05,ctx.Strategy.actionSeconds('rebirth'))+G.settleSeconds()
+        local decision,reason=ctx.GoalPlanner.tactical(data,inv,candidates,age,setup,ctx.CONFIG)
+        if decision then decision.rate=rate;decision.cost=setup;decision.restoreQuality='short-horizon observed stand economy' end
+        return decision,reason
+    end
+    function G.power(item)
+        local r=ctx.Strategy.route();local started=ctx.now()
+        local wallet=ctx.DirectPurchases.wallet();if not wallet then return end
+        ctx.Strategy.syncPowerBank(wallet.investors)
+        local done,message=ctx.DirectPurchases.powerPurchase(item,function()
+            if not G.repeating() or G.finish() then return false end
+            local evo=ctx.readEvolution();if not evo or evo.ready then return false end
+            local inv=ctx.readInvestors();if not inv then return false end
+            local d=G.choose(inv)
+            return d and d.choice=='POWER' and d.candidate.snapshot.stackLevel==item.level
+        end)
+        if not done and message=='STATE_CHANGED_BEFORE_CLICK' then return end
+        -- Sent but unconfirmed power requests retain the normal debit/receipt lock.
+        r.powerUsed=ctx.BN.add(r.powerUsed or ctx.BN.new(0),item.price)
+        r.powerBank=ctx.BN.sub(wallet.investors,item.price)
+        if not done then
+            r.powerUnresolved={item=item,reason=tostring(message)}
+            ctx.pause('POWER_OUTCOME_UNRESOLVED','Не подтверждён UpgradeStack; повтор заблокирован.');return
+        end
+        ctx.Strategy.recordTiming('power',ctx.now()-started)
+        ctx.S.counts.power=(ctx.S.counts.power or 0)+1;ctx.Strategy.recordSpend(item.price)
+        r.batchSelected=nil;r.maxUnavailable=nil;r.maxObserved=nil;r.availableBatches=nil
+        r.models={};r.priceModels={};r.batchQuotes={}
+        ctx.log('TACTICAL_STACK_RECEIPT','UpgradeStack tier '..tostring(item.level+1)..'; verified; reevaluate next tier')
     end
     function G.repeatStep()
         local r=ctx.Strategy.route();local inv=ctx.readInvestors()
         if inv then r.latestInvestors=inv end
-        local yes,why=G.repeatReady(inv)
-        if yes then
-            local detail={authorization='repeat-ready-rebirth',target='next evolution',reward=inv.reward,
-                cost=0,restoreQuality='user-selected repeat loop; no construction prerequisite'}
-            r.evolutionCheckTotal=ctx.Planner.totalMinimum(inv,r.spent)
-            G.note('REPEAT_READY_REBIRTH',detail)
-            ctx.HaloRun.performReset(inv,nil,detail,{rate=nil,plannedSpend=ctx.BN.new(0)})
-        elseif not inv then
-            G.note('REBIRTH_DATA_WAIT');ctx.status('REBIRTH_DATA_WAIT','Жду свежие данные rebirth; базу не строю.')
-        else
-            G.note('WAIT_REBIRTH_REWARD');ctx.status(why,'Жду доступную награду rebirth; базу не строю.')
+        local d,why
+        if inv and inv.time and ctx.now()-inv.time<=ctx.CONFIG.IncomeFreshSeconds then d,why=G.choose(inv)end
+        if not d then
+            G.note(why or 'REBIRTH_DATA_WAIT')
+            -- Missing income never authorizes a blind rebirth or stops ordinary
+            -- available upgrades. The direct adapters retain their own guards.
+            return false
         end
-        -- Even while waiting or after a cancelled decision, do not fall through
-        -- to BOOT/Powers/Buy. A sent unresolved transaction remains paused upstream.
+        G.note(d.choice,d)
+        if d.choice=='REBIRTH' then
+            local yes=G.repeatReady(inv)
+            if yes then
+                r.evolutionCheckTotal=ctx.Planner.totalMinimum(inv,r.spent)
+                ctx.HaloRun.performReset(inv,nil,d,{rate=d.rate,plannedSpend=ctx.BN.new(0)})
+            end
+        elseif d.choice=='POWER' then
+            for _,item in ipairs(ctx.DirectPurchases.powers())do
+                if item.name=='UpgradeStack' and item.available then G.power(item);break end
+            end
+        elseif d.choice=='STANDS' then
+            ctx.DirectUpgrades.dispatch(d.candidate.rows,d.candidate.snapshot)
+        else
+            ctx.status(d.choice,d.choice=='WAIT_EVOLUTION' and 'Доход ведёт к эволюции; сброс сейчас медленнее.'
+                or 'Награда ещё растёт выгоднее сброса; проверяю стенды и UpgradeStack.')
+        end
         if ctx.live() and not (r.endPurchased or r.completionSeen) and r.phase~='EVOLVE_RESERVE' then
-            ctx.Strategy.phase('REBIRTH_LOOP','повторные rebirth без прокачки базы')
+            ctx.Strategy.phase('REBIRTH_LOOP','выбор: UpgradeStack, стенды, выгодный rebirth или эволюция')
         end
         return true
     end
@@ -118,7 +202,11 @@ return function(ctx)
         local r=ctx.Strategy.route();r.evo=evo;r.lastEvolutionRead=ctx.now()
         if evo.ready then return false,'EVOLUTION_TAKES_PRIORITY' end
         if G.finish() then return false,'FINISH_CASH_FUNDED' end
-        if G.repeatIntent() then return G.repeatReady(inv) end
+        if G.repeatIntent() then
+            local ready,why=G.repeatReady(inv);if not ready then return false,why end
+            local d,reason=G.choose(inv)
+            return d~=nil and d.choice=='REBIRTH',reason or 'PREPARATION_OR_WAIT_NOW_BETTER'
+        end
         local detail,why=G.forecast(inv)
         if not detail or not detail.worth then return false,why or 'NEXT_EVOLUTION_NO_LONGER_FASTER' end
         return true
