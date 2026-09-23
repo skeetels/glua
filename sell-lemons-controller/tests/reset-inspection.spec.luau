@@ -13,8 +13,16 @@ local function fixture(supported)
         o.InvokeServer=function()error('scanner invoked a remote')end
     end
     local rs=node('Folder','ReplicatedStorage');mock.services.ReplicatedStorage=rs
-    for _,name in ipairs({'UIEvolutionMenu','ClientTycoonEvolution','TycoonEvolution','UIAscensionMenu',
-        'ClientTycoonAscension','TycoonAscension','UIAlert','RemoteRequest','Unrelated'})do node('ModuleScript',name,rs)end
+    for _,path in ipairs({'Modules.UI.Layers.Rebirth.UIEvolutionMenu','Modules.UI.Layers.Rebirth.UIAscensionMenu',
+        'Modules.Tycoon.Component.Client.ClientTycoonEvolution','Modules.Tycoon.Component.Client.ClientTycoonAscension',
+        'Modules.Tycoon.Component.TycoonEvolution','Modules.Tycoon.Component.TycoonAscension',
+        'Modules.UI.Layers.Important.UIAlert','Core.RemoteRequest'})do
+        local parent=rs;local parts=path:split('.')
+        for i,name in ipairs(parts)do parent=parent:FindFirstChild(name) or node(i==#parts and 'ModuleScript' or 'Folder',name,parent)end
+    end
+    -- Real report hit the old 12000-node limit before visiting Modules.
+    local models=node('Folder','Models',rs)
+    for i=1,12005 do node('Folder','Asset'..i,models)end
     local reads=0
     if supported then mock.globals.getscriptbytecode=function(o)reads=reads+1;return '\12\0'..o.Name..'\255' end end
     c.ResetConfirm={buttonLabel=function(o)return o.Name end,cancelButton=function(d)return d.negatives[1]end}
@@ -56,3 +64,33 @@ do
     assert(c2.S.running==nil and c2.S.epoch==nil,'diagnostic failure cannot change controller lifecycle')
 end
 print('PASS missing bytecode API and stalled source scan are reported without affecting farm actions')
+do
+    local c,m,node,rs,reads,initialize=fixture(true)
+    local folder=rs:FindFirstChild('Modules'):FindFirstChild('UI'):FindFirstChild('Layers'):FindFirstChild('Rebirth')
+    for i,o in ipairs(folder.children)do if o.Name=='UIEvolutionMenu'then table.remove(folder.children,i);break end end
+    c.ResetInspection.origin('evolve',node('TextButton','Evolve'));m.tasks[1]();m.tasks[2]()
+    assert(c.S.resetScans.rows.evolve.sourceStatus=='partial' and reads()==4)
+    local row=c.S.resetScans.rows.evolve
+    row.sourceStatus='complete';row.sourceRevision=nil -- 4.0.11 falsely reported zero matches as complete.
+    local replacement={S={},env=c.env,player=c.player,previousCycleState={resetScans=c.S.resetScans}}
+    initialize(replacement);m.tasks[3]();m.tasks[4]()
+    assert(row.stages.origin and row.sourceStatus=='partial' and reads()==4,'migration retains GUI stages and deduplicates complete sources')
+    assert(replacement.ResetInspection.report():find('MODULE_MISSING',1,true))
+end
+print('PASS targeted module capture bypasses asset traversal; missing modules stay partial and v1 false-complete scans retry')
+do
+    local c,m,node,rs,reads=fixture(true)
+    local session={}
+    c.ResetInspection.direct('evolve','sent',session)
+    c.ResetInspection.direct('evolve','receipt',{})
+    assert(not c.S.resetScans.rows.evolve.stages['direct-receipt'],'a different reset cannot supply the first capture outcome')
+    c.ResetInspection.direct('evolve','receipt',session)
+    c.ResetInspection.direct('evolve','sent',{});c.ResetInspection.direct('evolve','receipt',{})
+    m.tasks[1]();m.tasks[2]()
+    local report=c.ResetInspection.report()
+    assert(reads()==5 and c.S.resetScans.rows.evolve.sourceStatus=='complete')
+    assert(not c.S.resetScans.rows.evolve.stages.confirmation,'direct transport cannot claim a GUI confirmation')
+    local _,sent=report:gsub('DIRECT sent','');local _,receipt=report:gsub('DIRECT receipt','')
+    assert(sent==1 and receipt==1)
+end
+print('PASS direct reset observations and source capture run once without inventing button confirmation')

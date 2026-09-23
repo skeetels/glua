@@ -6,6 +6,7 @@ return function(ctx)
     ctx.S.resetScans=book
     local api={};ctx.ResetInspection=api
     local capturedSessions={}
+    local capturedDirect={}
     local function emit(lines,text)
         if book.bytes+#text>524288 then return false end
         lines[#lines+1]=text;book.bytes=book.bytes+#text;return true
@@ -42,43 +43,64 @@ return function(ctx)
         end
     end
     local function modules(row)
+        if row.sourceRevision==2 then return end
+        row.sourceRevision=2
         local read=ctx.env and ctx.env.getscriptbytecode or getscriptbytecode
         if type(read)~='function'then note(row,'BYTECODE_UNAVAILABLE getscriptbytecode');row.sourceStatus='unavailable';return end
         row.sourceStatus='running'
-        local targets=row.kind=='evolve' and {UIEvolutionMenu=true,ClientTycoonEvolution=true,TycoonEvolution=true}
-            or {UIAscensionMenu=true,ClientTycoonAscension=true,TycoonAscension=true}
-        targets.UIAlert=true;targets.RemoteRequest=true
+        -- Exact paths: unrelated replicated models exhausted the old DFS limit
+        -- before it ever reached Modules. Never traverse arbitrary game assets.
+        local targets=row.kind=='evolve' and {
+            'Modules.UI.Layers.Rebirth.UIEvolutionMenu',
+            'Modules.Tycoon.Component.Client.ClientTycoonEvolution',
+            'Modules.Tycoon.Component.TycoonEvolution',
+        } or {
+            'Modules.UI.Layers.Rebirth.UIAscensionMenu',
+            'Modules.Tycoon.Component.Client.ClientTycoonAscension',
+            'Modules.Tycoon.Component.TycoonAscension',
+        }
+        targets[#targets+1]='Modules.UI.Layers.Important.UIAlert'
+        targets[#targets+1]='Core.RemoteRequest'
         row.sourceThread=task.spawn(function()
             local ok,err=pcall(function()
-                local stack={game:GetService('ReplicatedStorage')};local visited=0;local matches=0
-                while #stack>0 and row.sourceStatus=='running' and not ctx.S.unloaded do
-                    local o=table.remove(stack);visited=visited+1
-                    if visited>12000 then note(row,'MODULE_SCAN_LIMIT');break end
-                    if o:IsA('ModuleScript') and targets[o.Name] then
-                        matches=matches+1;if matches>12 then note(row,'MODULE_MATCH_LIMIT');break end
-                        local name=path(o);note(row,'MODULE '..name)
-                        if not book.sources[name] then
-                            local lines={};book.sources[name]=lines
+                local matches,complete=0,0
+                for _,relative in ipairs(targets)do
+                    if row.sourceStatus~='running' or ctx.S.unloaded then return end
+                    local o=game:GetService('ReplicatedStorage')
+                    for part in relative:gmatch('[^.]+')do o=o and o:FindFirstChild(part)end
+                    if not o or not o:IsA('ModuleScript')then
+                        note(row,'MODULE_MISSING '..relative)
+                    else
+                        matches=matches+1;local name=path(o);note(row,'MODULE '..name)
+                        local cached=book.sources[name]
+                        if cached and cached[#cached] and cached[#cached]:find('[SL BC] END ',1,true)then
+                            complete=complete+1
+                        else
                             local good,data=pcall(read,o)
                             if row.sourceStatus~='running' or ctx.S.unloaded then return end
                             if good and type(data)=='string' and #data>=4 and #data<=65536 and book.sourceBytes+#data<=196608 then
-                                book.sourceBytes=book.sourceBytes+#data;book.nextId=book.nextId+1;local id=book.nextId
+                                local lines={};local id=book.nextId+1;local chars=0
+                                local function add(line)lines[#lines+1]=line;chars=chars+#line end
                                 local a,b=1,0;for i=1,#data do a=(a+data:byte(i))%65521;b=(b+a)%65521 end
-                                emit(lines,'[SL BC] BEGIN '..id..' bytes='..#data..' adler='..(b*65536+a)..' path='..name)
+                                add('[SL BC] BEGIN '..id..' bytes='..#data..' adler='..(b*65536+a)..' path='..name)
                                 for offset=1,#data,192 do
                                     local hex=data:sub(offset,offset+191):gsub('.',function(ch)return string.format('%02x',ch:byte())end)
-                                    emit(lines,'[SL BC] PART '..id..' '..offset..' '..hex)
+                                    add('[SL BC] PART '..id..' '..offset..' '..hex)
                                 end
-                                emit(lines,'[SL BC] END '..id)
-                            else emit(lines,'[SL RESET SCAN] BYTECODE_UNAVAILABLE '..name..' reason='..(good and 'size/budget/type' or clean(data)))end
+                                add('[SL BC] END '..id)
+                                if book.bytes+chars<=524288 then
+                                    for _,line in ipairs(cached or {})do book.bytes=book.bytes-#line end
+                                    book.sources[name]=lines;book.bytes=book.bytes+chars
+                                    book.sourceBytes=book.sourceBytes+#data;book.nextId=id;complete=complete+1
+                                else note(row,'BYTECODE_BUDGET '..name)end
+                            else note(row,'BYTECODE_UNAVAILABLE '..name..' reason='..(good and 'size/budget/type' or clean(data)))end
                         end
                     end
-                    for _,child in ipairs(o:GetChildren())do stack[#stack+1]=child end
-                    if visited%100==0 then task.wait()end
                 end
-                note(row,'MODULE_SCAN_DONE matches='..matches)
+                note(row,'MODULE_SCAN_DONE matches='..matches..'; complete='..complete..'/'..#targets)
+                row.sourceStatus=complete==#targets and 'complete' or 'partial'
             end)
-            if row.sourceStatus=='running'then row.sourceStatus=ok and 'complete' or 'error' end
+            if row.sourceStatus=='running'then row.sourceStatus=ok and 'partial' or 'error' end
             if not ok then note(row,'MODULE_SCAN_ERROR '..clean(err))end
         end)
         task.delay(5,function()
@@ -97,10 +119,17 @@ return function(ctx)
         local ok,err=pcall(fn,row)
         if not ok then note(row,'CAPTURE_ERROR '..stage..' '..clean(err))end
     end
+    function api.inspectSources(kind)
+        if kind~='evolve' and kind~='halo'then return end
+        local row=book.rows[kind]
+        if not row then row={kind=kind,lines={},stages={}};book.rows[kind]=row end
+        modules(row)
+    end
     function api.origin(kind,button)
+        api.inspectSources(kind)
         capture(kind,'origin',function(row)
             note(row,'START v1; game='..game.PlaceVersion..'; read only')
-            control(row,'ORIGIN',button);ownState(row);modules(row)
+            control(row,'ORIGIN',button);ownState(row)
         end)
     end
     function api.dialog(session,d)
@@ -122,6 +151,16 @@ return function(ctx)
             ownState(row)
         end)
     end
+    function api.direct(kind,stage,session)
+        -- Once per stage; no synthetic GUI confirmation is claimed.
+        if not session or stage~='sent' and capturedDirect[kind]~=session then return end
+        capture(kind,'direct-'..stage,function(row)
+            if stage=='sent'then capturedDirect[kind]=session end
+            note(row,'DIRECT '..stage..'; ordinary request; no GUI')
+            ownState(row)
+        end)
+        api.inspectSources(kind)
+    end
     function api.report()
         local lines={'--- RETAINED EVOLUTION / HALO SCANS v1 ---'}
         for _,kind in ipairs({'evolve','halo'})do
@@ -132,6 +171,13 @@ return function(ctx)
         local paths={};for name in pairs(book.sources)do paths[#paths+1]=name end;table.sort(paths)
         for _,name in ipairs(paths)do for _,line in ipairs(book.sources[name])do lines[#lines+1]=line end end
         return table.concat(lines,'\n')
+    end
+    -- Repair incomplete v1 scans on reload while preserving the captured buttons.
+    -- A failed attempt may retry once in a new controller instance, never in a loop.
+    for _,row in pairs(book.rows)do
+        if row.sourceRevision~=2 or row.sourceStatus~='complete'then
+            row.sourceRevision=nil;modules(row)
+        end
     end
     function api.dispose()
         for _,row in pairs(book.rows)do

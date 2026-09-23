@@ -63,7 +63,7 @@ return function(ctx)
             ..' / refreshes='..ctx.Observer.refreshes..' / cache hits='..ctx.Observer.hits
             ..' / recovery resumes='..controller.recoveries..' / timed reviews='..controller.reviews
             ..'\nTransport: direct stands='..tostring(ctx.CONFIG.DirectUpgrades)..'; direct Powers/Buy='..tostring(ctx.CONFIG.DirectPurchases)
-            ..'; direct prestige='..tostring(ctx.CONFIG.DirectPrestige)..'; evolution/Halo execution retains GUI.'
+            ..'; direct prestige='..tostring(ctx.CONFIG.DirectPrestige)..'; Evolution/Halo use verified direct protocol; GUI fallback on identity mismatch.'
             ..'\n'..(ok and direct or 'Direct report failed: '..tostring(direct))
     end
 end

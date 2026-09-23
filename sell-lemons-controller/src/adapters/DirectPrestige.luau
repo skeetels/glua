@@ -1,5 +1,4 @@
--- Replicated prestige observations; ordinary rebirth only. Evolution and Halo
--- execution keep the existing GUI transaction, opened only when selected.
+-- Replicated prestige observations and verified ordinary reset transactions.
 return function(ctx)
     local P={};ctx.DirectPrestige=P;local D=ctx.DirectUpgrades;local M=ctx.UpgradeMath
     local function child(o,n)return o and o:FindFirstChild(n)end
@@ -113,6 +112,121 @@ return function(ctx)
         for _,k in ipairs({'Evolution','Ascension','Rebirths','TotalRebirths','TotalEvolves'})do if a.epoch[k]~=b.epoch[k]then return false end end
         return true
     end
+    -- Captured v6916 UI -> client component -> RemoteRequest chain. Validate
+    -- these separately so an updated reset UI cannot disable ordinary upgrades.
+    function P.verifyReset(kind)
+        P.resetSchemas=P.resetSchemas or {}
+        local cached=P.resetSchemas[kind];if cached then return cached.ok,cached.reason end
+        local row={ok=false};P.resetSchemas[kind]=row
+        local reader=type(ctx.env.getscriptbytecode)=='function' and ctx.env.getscriptbytecode or getscriptbytecode
+        if type(reader)~='function'then row.reason='BYTECODE_IDENTITY_UNAVAILABLE';return false,row.reason end
+        local specs=kind=='evolve' and {
+            {'Modules.UI.Layers.Rebirth.UIEvolutionMenu',7634,4240708282},
+            {'Modules.Tycoon.Component.Client.ClientTycoonEvolution',1229,3782527611},
+        } or {
+            {'Modules.UI.Layers.Rebirth.UIAscensionMenu',11995,1534588081},
+            {'Modules.Tycoon.Component.Client.ClientTycoonAscension',1176,3761947570},
+        }
+        specs[#specs+1]={'Core.RemoteRequest',4201,653841906}
+        for _,spec in ipairs(specs)do
+            local o=game:GetService('ReplicatedStorage');for part in spec[1]:gmatch('[^.]+')do o=child(o,part)end
+            local ok,bytes=pcall(reader,o);local a,b=1,0
+            if ok and type(bytes)=='string' and #bytes==spec[2]then
+                for i=1,#bytes do a=(a+bytes:byte(i))%65521;b=(b+a)%65521 end
+            else a,b=0,0 end
+            if b*65536+a~=spec[3]then row.reason='RESET_PROTOCOL_CHANGED '..spec[1];return false,row.reason end
+        end
+        row.ok=true;ctx.log('DIRECT_RESET_PROTOCOL_VERIFIED',kind..'; ordinary request; no GUI')
+        return true
+    end
+    function P.resetProof(rec)
+        local after=P.snapshot();local b=after and after.snapshot;local a=rec.before.snapshot
+        if not b or a.own~=b.own or a.root~=b.root or a.values~=b.values then return false end
+        local x,y=a.epoch,b.epoch
+        if y.TotalRebirths~=x.TotalRebirths or y.Rebirths~=0 then return false end
+        if rec.kind=='evolve'then
+            return y.Ascension==x.Ascension and y.Evolution==x.Evolution+1 and y.TotalEvolves==x.TotalEvolves+1
+        elseif rec.kind=='halo'then
+            return y.Ascension==x.Ascension+1 and y.Evolution==0 and y.TotalEvolves==x.TotalEvolves
+        end
+        return false
+    end
+    function P.reset(kind)
+        if kind~='evolve' and kind~='halo'then return false end
+        local S=ctx.S;local r=ctx.Strategy.route();local option=kind=='evolve' and 'AutoEvolution' or 'AutoHalo'
+        local function live()return ctx.live() and S.resetEnabled and ctx.CONFIG[option]end
+        if not live() or S.actionPending or S.resetSession or S.resetChildPending or S.buyHold then return false end
+        if r.directResetUnresolved then ctx.pause('DIRECT_RESET_UNRESOLVED','Прежний сброс ещё не подтверждён.');return false end
+        local verified,why=P.verifyReset(kind);if not verified then ctx.Strategy.noteResetAbort(why);return false end
+        if ctx.ResetInspection then pcall(ctx.ResetInspection.inspectSources,kind)end
+        local function observe()if kind=='evolve'then return P.evolution()end;return P.halo()end
+        local function allowed(before)
+            if not before then return false,'RESET_DATA_UNAVAILABLE' end
+            if kind=='halo'then return before.ready,'HALO_NOT_READY'end
+            local ready,reason=ctx.Core.evolutionGuard(before,ctx.CONFIG.TabletReserve)
+            if not ready then return false,reason end
+            if ctx.HaloRun and ctx.HaloRun.deferEvolution then
+                local hold,reason=ctx.HaloRun.deferEvolution(true);if hold then return false,reason end
+            end
+            return true
+        end
+        local before=observe();local ready,reason=allowed(before)
+        if not ready then ctx.Strategy.noteResetAbort(reason);return false end
+        if kind=='evolve'then
+            if not ctx.sleep(ctx.CONFIG.EvolutionReadyDelay)then return false end
+            local fresh=observe()
+            if not fresh or not sameCycle(before.snapshot,fresh.snapshot)then return false end
+            before=fresh;ready,reason=allowed(before)
+            if not ready then ctx.Strategy.noteResetAbort(reason);return false end
+        end
+        if not live() or S.actionPending or S.resetSession or S.resetChildPending or S.buyHold then return false end
+        local name=kind=='evolve' and 'Evolve' or 'Ascend'
+        local remote=child(child(before.snapshot.own,'Remotes'),name)
+        if not remote or not remote:IsA('RemoteFunction')then ctx.pause('RESET_REMOTE_UNAVAILABLE',name..' отсутствует.');return false end
+        local rec={kind=kind,before=before,epoch=S.epoch,started=ctx.now(),sent=false};S.actionPending=rec
+        task.spawn(function()
+            rec.ok,rec.error=pcall(function()
+                local current=observe()
+                assert(not rec.waitEnded and ctx.live(rec.epoch) and live(),'PAUSED_BEFORE_DISPATCH')
+                assert(current and sameCycle(before.snapshot,current.snapshot),'PRESTIGE_STATE_CHANGED')
+                local permitted,reason=allowed(current);assert(permitted,reason or 'RESET_INTENT_CHANGED')
+                assert(child(child(current.snapshot.own,'Remotes'),name)==remote,'RESET_REMOTE_CHANGED')
+                rec.sent=true;r.transactionStartedAt=ctx.now()
+                if r.halo30 then r.halo30.resetInFlight=kind end
+                r.lastResetExecution={stage='dispatched',reason=kind,at=ctx.now()}
+                ctx.log('DIRECT_'..kind:upper()..'_SENT','ordinary request; no GUI')
+                if ctx.ResetInspection then pcall(ctx.ResetInspection.direct,kind,'sent',rec)end
+                if kind=='evolve'then remote:InvokeServer(nil)else remote:InvokeServer()end
+            end)
+            rec.returned=true
+            if rec.waitEnded and S.actionPending==rec then S.actionPending=nil end
+        end)
+        repeat
+            if rec.returned and (not rec.ok or P.resetProof(rec))then break end
+            task.wait(.05);S.actionYieldSerial=(S.actionYieldSerial or 0)+1
+        until ctx.now()-rec.started>=ctx.CONFIG.ResetTimeout
+        rec.waitEnded=true
+        if rec.returned and S.actionPending==rec then S.actionPending=nil end
+        if not rec.sent then
+            r.lastResetExecution={stage='not-dispatched',reason=kind,at=ctx.now()}
+            ctx.Strategy.noteResetAbort(tostring(rec.error or 'NOT_DISPATCHED'));return false
+        end
+        if not rec.returned or not rec.ok or not P.resetProof(rec)then
+            r.directResetUnresolved=rec
+            r.lastResetExecution={stage='unresolved',reason=kind,at=ctx.now(),error=rec.error}
+            ctx.pause('DIRECT_RESET_UNRESOLVED',name..' отправлен один раз; изменение счётчиков не подтверждено: '..tostring(rec.error))
+            if ctx.ResetInspection then pcall(ctx.ResetInspection.direct,kind,'unresolved',rec)end
+            return false
+        end
+        if r.halo30 then r.halo30.resetInFlight=nil end
+        local duration=math.max(.01,ctx.now()-rec.started)
+        r.lastResetExecution={stage='confirmed',reason=kind,at=ctx.now()};r.resetDuration=duration
+        ctx.Strategy.recordTiming(kind,duration);ctx.Strategy.afterReset(kind,before)
+        ctx.progress(kind);ctx.log('DIRECT_'..kind:upper()..'_RECEIPT','exact reset counters verified; no GUI')
+        if ctx.ResetInspection then pcall(ctx.ResetInspection.direct,kind,'receipt',rec)end
+        S.runStart=ctx.now();S.lastRefresh=-math.huge;S.lastPowers=-math.huge
+        ctx.sleep(ctx.CONFIG.AfterResetWait);return true
+    end
     function P.rebirthProof(rec)
         local after=P.snapshot();local b=after and after.snapshot;local a=rec.before.snapshot
         return b and a.own==b.own and a.root==b.root and a.values==b.values
@@ -167,6 +281,7 @@ return function(ctx)
     end
     local oldReset=ctx.doReset
     function ctx.doReset(kind)
+        if kind=='evolve' and not ctx.CONFIG.AutoEvolution or kind=='halo' and not ctx.CONFIG.AutoHalo then return false end
         if kind=='evolve' and ctx.HaloRun and ctx.HaloRun.deferEvolution then
             local hold,reason=ctx.HaloRun.deferEvolution(true)
             if hold then
@@ -176,7 +291,11 @@ return function(ctx)
         end
         if not ctx.CONFIG.DirectPrestige then return oldReset(kind)end
         if kind=='rebirth' then return P.rebirth()end
-        -- The retained confirmation flow still verifies actual GUI gates/progress.
+        if kind~='evolve' and kind~='halo'then return false end
+        local verified,reason=P.verifyReset(kind)
+        if verified then return P.reset(kind)end
+        ctx.log('DIRECT_RESET_GUI_FALLBACK',kind..'; '..tostring(reason))
+        -- Preserve the previous guarded GUI path if protocol identity changed.
         local key=kind=='evolve' and 'evolution' or 'halo'
         local ok=ctx.navigate(key);if not ok then return false end
         local savedEvolution,savedHalo=ctx.readEvolution,ctx.readHalo
@@ -191,7 +310,7 @@ return function(ctx)
         if ctx.CONFIG.DirectPrestige and ctx.Strategy.route().directResetUnresolved then
             if not ctx.S.actionPending then ctx.DirectPurchases.refreshEpoch()end
             if ctx.Strategy.route().directResetUnresolved then
-                ctx.pause('DIRECT_RESET_UNRESOLVED','Прежний rebirth ещё не подтверждён; новые действия остановлены.');return
+                ctx.pause('DIRECT_RESET_UNRESOLVED','Прежний сброс ещё не подтверждён; новые действия остановлены.');return
             end
         end
         return oldStep()
@@ -213,6 +332,11 @@ return function(ctx)
         local rows={oldReport()};local inv,why=P.investors();local evo=P.evolution()
         rows[#rows+1]='[SL PRESTIGE] '..(inv and ('bank='..ctx.BN.format(inv.investors)..'; reward='..ctx.BN.format(inv.reward)..'; perInvestor='..inv.perInvestor) or tostring(why))
         if evo then rows[#rows+1]='[SL PRESTIGE] E='..evo.index..'; progress='..evo.pct..'; bonus='..ctx.BN.format(evo.bonus)..'; targetLog='..evo.targetLog end
+        for _,kind in ipairs({'evolve','halo'})do
+            local row=P.resetSchemas and P.resetSchemas[kind]
+            rows[#rows+1]='[SL PRESTIGE TRANSPORT] '..kind..'='..(not ctx.CONFIG.DirectPrestige and 'GUI (disabled)'
+                or not row and 'direct pending identity check' or row.ok and 'direct verified' or ('GUI fallback: '..tostring(row.reason)))
+        end
         return table.concat(rows,'\n')
     end
 end

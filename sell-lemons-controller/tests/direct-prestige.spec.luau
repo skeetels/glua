@@ -33,7 +33,7 @@ local function fixture(mode)
         local epoch={};for _,k in ipairs({'Evolution','Ascension','Rebirths','TotalRebirths','TotalEvolves'})do epoch[k]=v.attrs[k]end
         return {own=own,root=root,values=v,epoch=epoch}
     end}
-    c.S={running=true,epoch=1,resetEnabled=true,counts={rebirth=0}}
+    c.S={running=true,epoch=1,resetEnabled=true,counts={rebirth=0,evolve=0,halo=0}}
     c.env={};c.now=function()return time end;c.live=function(epoch)return c.S.running and (not epoch or epoch==c.S.epoch)end
     c.log=function(k)events[#events+1]=k end;c.pause=function(k)c.S.running=false;c.S.code=k end
     c.sleep=function(dt)time=time+dt;return c.S.running end;c.progress=function(k)c.S.counts[k]=c.S.counts[k]+1 end
@@ -52,9 +52,11 @@ local function fixture(mode)
             if mode=='timeout' then return end
             local pending=queue;queue={}
             if mode=='cancel' then c.S.running=false end
+            if c.beforeJobs then c.beforeJobs()end
             for _,fn in ipairs(pending)do fn()end
         end}}, {__index=getfenv()})
     setfenv(initialize,env);initialize(c);c.DirectPrestige.verify=function()return true end
+    c.DirectPrestige.verifyReset=function()return false,'FIXTURE_GUI_FALLBACK'end
     c.CONFIG.ResetTimeout=.15
     return c,v,premium,ledger,r,calls,events,queue
 end
@@ -129,3 +131,72 @@ v.attrs.CashSpent='invalid';assert(not c.readInvestors())
 v.attrs.CashSpent=math.huge;assert(not c.readInvestors())
 v.attrs.CashSpent=0/0;assert(not c.readInvestors())
 print('PASS string and absent zero expense balances decode after evolution; fresh E4 is readable and malformed values still fail')
+local function directFixture(kind,mode)
+    local c,v,p,l,r,calls,events,queue=fixture(mode=='timeout' and 'timeout' or 'ok')
+    c.DirectPrestige.verifyReset=function()return true end
+    -- Actual captured 4.0.11 E5 -> E6; Halo27 -> 28.
+    v.attrs.Evolution=kind=='evolve' and 5 or 6;v.attrs.Ascension=27
+    v.attrs.Rebirths=kind=='evolve' and 2 or 3;v.attrs.TotalEvolves=kind=='evolve' and 185 or 186
+    v.attrs.TotalRebirths=kind=='evolve' and 1148 or 1151
+    v.attrs.Cash=217.35401899096746;v.attrs.CashSpent=217.44911656526986
+    v.attrs.Investors=75.56765475958363;v.attrs.InvestorsSpent=63
+    for _,key in ipairs(c.GameBalance.PurchaseOrder)do l.attrs[key]=true end
+    c.HaloRun={deferEvolution=function()return r.hold,'CONTINUE_FUNDED_CONSTRUCTION'end}
+    c.Strategy.phase=function(phase)r.phase=phase end
+    local own=c.DirectPrestige.snapshot().snapshot.own
+    local remote={IsA=function(_,class)return class=='RemoteFunction'end}
+    own.children.Remotes.children[kind=='evolve' and 'Evolve' or 'Ascend']=remote
+    function remote:InvokeServer(...)
+        if kind=='evolve'then assert(select('#',...)==1 and select(1,...)==nil,'normal evolution must never use paid/free true')
+        else assert(select('#',...)==0,'Ascend has no arguments')end
+        calls[#calls+1]='direct '..kind
+        if mode=='error'then error('server unavailable')end
+        if mode=='silent'then return true end -- server return alone is not a receipt.
+        if kind=='evolve'then
+            v.attrs.Evolution=v.attrs.Evolution+1;v.attrs.TotalEvolves=v.attrs.TotalEvolves+1
+        else v.attrs.Ascension=v.attrs.Ascension+1;v.attrs.Evolution=0 end
+        v.attrs.Rebirths=0
+        if mode=='wrong-lifetime'then v.attrs.TotalRebirths=v.attrs.TotalRebirths+1 end
+        if mode=='wrong-count'then v.attrs.TotalEvolves=v.attrs.TotalEvolves+1 end
+        if mode=='partial'then v.attrs.Rebirths=1 end
+        if mode=='pause-after'then c.S.running=false end
+        if mode=='late-replication'then v.attrs.Rebirths=1;c.beforeJobs=function()v.attrs.Rebirths=0 end end
+        return true
+    end
+    return c,v,l,r,calls,queue
+end
+for _,kind in ipairs({'evolve','halo'})do
+    for _,mode in ipairs({'ok','late-replication','pause-after'})do
+        local c,v,l,r,calls=directFixture(kind,mode)
+        assert(c.doReset(kind) and #calls==1 and calls[1]=='direct '..kind)
+        assert(c.S.counts[kind]==1 and r.finished==kind and not c.S.actionPending and not r.directResetUnresolved)
+        if mode=='pause-after'then assert(not c.S.running,'receipt cannot resume a user pause')end
+    end
+    for _,mode in ipairs({'silent','error','wrong-lifetime','wrong-count','partial'})do
+        local c,v,l,r,calls=directFixture(kind,mode)
+        assert(not c.doReset(kind) and #calls==1 and c.S.counts[kind]==0 and r.directResetUnresolved,kind..' '..mode)
+        c.S.running=true;assert(not c.doReset(kind) and #calls==1,'unresolved reset cannot be repeated')
+    end
+    local c,v,l,r,calls,queue=directFixture(kind,'timeout')
+    assert(not c.doReset(kind) and c.S.actionPending and #calls==0)
+    for _,fn in ipairs(queue)do fn()end
+    assert(#calls==0 and not c.S.actionPending,'expired unsent work cannot dispatch later even if still running')
+    local c,v,l,r,calls=directFixture(kind,'ok')
+    c.beforeJobs=function()c.S.running=false end
+    assert(not c.doReset(kind) and #calls==0,'pause before dispatch must prevent network request')
+    local c,v,l,r,calls=directFixture(kind,'ok')
+    c.CONFIG[kind=='evolve' and 'AutoEvolution' or 'AutoHalo']=false
+    assert(not c.doReset(kind) and #calls==0)
+end
+print('PASS ordinary direct Evolution/Halo arguments, real counter transitions, partial/late receipts, pause, timeout and no-repeat rules')
+do
+    local c,v,l,r,calls=directFixture('evolve','ok');r.hold=true
+    assert(not c.doReset('evolve') and #calls==0 and r.phase=='BUY')
+    local c,v,l,r,calls=directFixture('evolve','ok');c.beforeJobs=function()r.hold=true end
+    assert(not c.doReset('evolve') and #calls==0,'fresh funded finish must veto even after reset selection')
+    local c,v,l,r,calls=directFixture('evolve','ok');v.attrs.Cash=1;v.attrs.CashSpent=1;v.attrs.Investors=1;v.attrs.InvestorsSpent=1
+    assert(not c.doReset('evolve') and #calls==0,'not-ready evolution is not sent')
+    local c,v,l,r,calls=directFixture('halo','ok');l.attrs={}
+    assert(not c.doReset('halo') and #calls==0,'unfinished base cannot send Ascend')
+end
+print('PASS ready gates and current-route protection apply to direct resets immediately before sending')

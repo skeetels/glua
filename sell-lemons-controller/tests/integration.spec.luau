@@ -100,6 +100,34 @@ assert(ctx.Strategy.route().phase=='POWERS','post-evolution boot must resume pow
 assert(ctx.Strategy.route().spent.m==0 and not ctx.Strategy.route().spentUnknown)
 assert(not ctx.S.actionPending and not ctx.S.resetSession,'no replacement reset is dispatched')
 print('PASS confirmed E3 to E4 cleanup and actual BOOT resume to POWERS with string-zero spent balances')
+-- Exercise the actual direct transaction -> afterReset wrappers -> BOOT chain.
+ctx.DirectPrestige.verifyReset=function()return true end
+ctx.HaloRun.deferEvolution=function()return false end -- policy itself has report-based regression fixtures.
+ctx.sleep=function()return ctx.S.running end
+mock.env.task.spawn=function(fn)fn();return fn end
+ctx.navigate=function()error('direct reset attempted GUI navigation')end
+own.children.Remotes=node('Remotes')
+for _,kind in ipairs({'evolve','halo'})do
+    values.attrs.Evolution=kind=='evolve' and 5 or 6;values.attrs.Ascension=27
+    values.attrs.TotalEvolves=186;values.attrs.Rebirths=2;values.attrs.TotalRebirths=1151
+    values.attrs.Cash=217.354;values.attrs.CashSpent=217.449
+    values.attrs.Investors=75.567;values.attrs.InvestorsSpent=63
+    for _,key in ipairs(ctx.GameBalance.PurchaseOrder)do root.children.Purchases.attrs[key]=true end
+    local remote=node(kind=='evolve' and 'Evolve' or 'Ascend');remote.IsA=function(_,k)return k=='RemoteFunction'end
+    own.children.Remotes.children[remote.Name]=remote
+    function remote:InvokeServer()
+        if kind=='evolve'then values.attrs.Evolution=6;values.attrs.TotalEvolves=187
+        else values.attrs.Ascension=28;values.attrs.Evolution=0 end
+        values.attrs.Rebirths=0;values.attrs.Cash=54;values.attrs.Investors=3
+        values.attrs.CashSpent='0';values.attrs.InvestorsSpent='0';root.children.Purchases.attrs={}
+    end
+    assert(ctx.doReset(kind),ctx.S.code..' '..ctx.S.status)
+    assert(ctx.Strategy.route().phase=='BOOT' and not ctx.S.actionPending)
+    ctx.HaloRun.boot()
+    assert(ctx.S.running and ctx.Strategy.route().phase=='POWERS',ctx.S.code..' '..ctx.S.status)
+    assert(ctx.Strategy.route().evo.index==(kind=='evolve' and 6 or 0))
+end
+print('PASS direct Evolution/Halo receipts run full cleanup and resume real BOOT to POWERS without menus')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)
