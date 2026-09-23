@@ -133,6 +133,37 @@ for _,kind in ipairs({'evolve','halo'})do
     assert(ctx.Strategy.route().evo.index==(kind=='evolve' and 6 or 0))
 end
 print('PASS direct Evolution/Halo receipts run full cleanup and resume real BOOT to POWERS without menus')
+-- Report 15e63d31, H82/E4: not-ready evolution and nonzero direct income enter
+-- the rebirth comparison on the very first BOOT after injection. Earlier boot
+-- fixtures had no stand income, so they returned before touching the calculator.
+do
+    local originalCards=ctx.DirectUpgrades.cards
+    local originalCompare=ctx.GoalPlanner.compare
+    local compared=0;local failure
+    ctx.DirectUpgrades.cards=function()
+        return {{source='direct',path='direct/LemonStand',key='LemonStand',name='Lemon Stand',
+            income=ctx.BN.new(1.862,135),periodSeconds=1}}
+    end
+    ctx.GoalPlanner.compare=function(...)
+        compared=compared+1
+        local result,why=originalCompare(...);failure=why;return result,why
+    end
+    values.attrs.Cash=136.5247850360478;values.attrs.CashSpent='0'
+    values.attrs.Investors=3.1329471383665064;values.attrs.InvestorsSpent='0'
+    values.attrs.Evolution=4;values.attrs.Ascension=82;values.attrs.Rebirths=0
+    values.attrs.TotalRebirths=1532;values.attrs.TotalEvolves=527;root.children.Purchases.attrs={}
+    for _=1,2 do
+        ctx.API.pause();ctx.API.start()
+        assert(ctx.S.running and ctx.Strategy.route().phase=='BOOT')
+        ctx.HaloRun.boot()
+        assert(ctx.S.running and ctx.Strategy.route().phase=='POWERS',ctx.S.code..' '..ctx.S.status)
+        assert(failure=='NO_CLEAN_PREFIX','partial attachment must continue work without inventing a reset route')
+        assert(not ctx.S.actionPending and not ctx.S.resetSession)
+    end
+    assert(compared==2,'exercise actual goal comparison on both fresh startup and F6 resume')
+    ctx.GoalPlanner.compare=originalCompare;ctx.DirectUpgrades.cards=originalCards
+end
+print('PASS H82/E4 reported BOOT and F6 resume execute real goal comparison without nil arithmetic or an unauthorized reset')
 local connections=ctx.S.connections
 ctx.API.unload()
 assert(ctx.S.unloaded and ctx.panel.destroyed)

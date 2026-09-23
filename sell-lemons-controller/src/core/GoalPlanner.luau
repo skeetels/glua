@@ -1,6 +1,8 @@
 -- Compare time to the NEXT evolution, not time to rebuild an entire old base.
 return function(ctx)
-    local G={};ctx.GoalPlanner=G;local B=ctx.BN;local P=ctx.PrestigeMath;local M=ctx.UpgradeMath
+    -- Numeric is initialized before all core planners; ctx.BN is a later
+    -- ClientContext alias and must not be captured during core initialization.
+    local G={};ctx.GoalPlanner=G;local B=ctx.Core.BN;local P=ctx.PrestigeMath;local M=ctx.UpgradeMath
     function G.prefix(trace,factor,needed,config)
         if not trace or not trace.complete or trace.invalid or not trace.points or #trace.points==0
             or not factor or factor.m<=0 or not needed then return nil,'NO_CLEAN_PREFIX' end

@@ -1,10 +1,16 @@
-import argparse,subprocess,json,tempfile
+import argparse,subprocess,json,tempfile,re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 ap=argparse.ArgumentParser();ap.add_argument('--luau-dir',type=Path,required=True);args=ap.parse_args()
 suffix='.exe' if (args.luau_dir/'luau.exe').exists() else ''
 compiler=args.luau_dir/('luau-compile'+suffix)
 runtime=args.luau_dir/('luau'+suffix)
+# The integration fixture must load the same modules in the same order as the
+# shipped bundle, or core/runtime dependency bugs can disappear in the harness.
+manifest=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8'))
+integration=(ROOT/'tests/integration.spec.luau').read_text(encoding='utf-8')
+loaded=re.findall(r"do local initialize=require\('\.\./([^']+)'\)",integration)
+assert [p+'.luau' for p in loaded]==manifest['entry'],'Integration initialization order differs from the bundle'
 files=sorted((ROOT/'src').rglob('*.luau'))+sorted((ROOT/'loader').glob('*.lua'))+sorted((ROOT/'dist').glob('*.lua'))
 for p in files:
     r=subprocess.run([str(compiler),str(p),'--text'],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)

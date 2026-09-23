@@ -1,6 +1,10 @@
-local c={};require('../src/config')(c);require('../src/core/Numeric')(c);c.BN=c.Core.BN
+local c={};require('../src/config')(c);require('../src/core/Numeric')(c)
 require('../src/core/UpgradeMath')(c);require('../src/core/PrestigeMath')(c)
 require('../src/core/EconomyPlanner')(c);require('../src/core/GoalPlanner')(c)
+-- Production loads core modules before ClientContext creates the convenience
+-- alias. Setting it before GoalPlanner initialization concealed a nil capture.
+assert(c.BN==nil and c.Core.BN)
+c.BN=c.Core.BN
 local B=c.BN;local P=c.PrestigeMath;local G=c.GoalPlanner;local M=c.UpgradeMath
 local function near(a,b)assert(math.abs(a-b)<1e-7,tostring(a)..' vs '..tostring(b))end
 -- Independent inverse calculation at ordinary magnitudes, then extreme log units.
