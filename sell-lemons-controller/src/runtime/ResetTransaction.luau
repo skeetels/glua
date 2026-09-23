@@ -7,6 +7,13 @@ function __slctx.doReset(kind)
     if not __slctx.confirmKinds[kind] then return false end
     if __slctx.S.resetSession or __slctx.S.resetChildPending or __slctx.S.actionPending then return false end
     local before,button,err
+    local function evolutionAllowed()
+        if kind~='evolve' or not __slctx.HaloRun or not __slctx.HaloRun.deferEvolution then return true end
+        local hold,reason=__slctx.HaloRun.deferEvolution(true)
+        if hold then __slctx.Strategy.route().lastResetGuardReason=reason end
+        return not hold
+    end
+    if not evolutionAllowed()then __slctx.Strategy.phase('BUY','эволюция отложена: текущая база продолжает строиться');return false end
     if kind=='rebirth' then
         before,err=__slctx.readInvestors()
         if not before then __slctx.Strategy.noteResetAbort(err or 'INVESTORS_READ_FAILED');return false end
@@ -61,6 +68,8 @@ function __slctx.doReset(kind)
             local current=__slctx.Strategy.peekResetInvestors(session,dialog)
             return current and __slctx.Strategy.rebirthBarrier(current)
         end}
+    elseif kind=='evolve' then
+        session.expected={authorize=evolutionAllowed}
     end
     session.before=before;session.observationOpens=0
     local pendingRoute=__slctx.Strategy.route()
@@ -126,12 +135,16 @@ function __slctx.doReset(kind)
                 if not allowed then __slctx.Strategy.route().lastResetGuardReason=reason end
                 return allowed
             end
-            return true
+            return evolutionAllowed()
         end})
     if not ok and not session.cancelledReason and __slctx.live() then __slctx.ResetConfirm.dump(session) end
     __slctx.ResetConfirm.finish(session,ok)
     if __slctx.Strategy.route().halo30 then __slctx.Strategy.route().halo30.resetInFlight=nil end
     if not ok then
+        if kind=='evolve' and __slctx.Strategy.route().lastResetGuardReason then
+            __slctx.log('EVOLUTION_DEFERRED',__slctx.Strategy.route().lastResetGuardReason..'; confirmation cancelled; no reset receipt')
+            __slctx.Strategy.phase('BUY','продолжаю текущую базу вместо эволюции');return false
+        end
         if kind=='rebirth' then __slctx.Strategy.noteResetAbort(__slctx.Strategy.route().lastResetGuardReason or e or 'RESET_FAILED') end
         if session.cancelledReason and kind=='rebirth' then
             __slctx.log('REBIRTH_CANCELLED',session.cancelledReason..'; no reset receipt; continue existing run')

@@ -518,31 +518,31 @@ end
 function __slctx.ResetConfirm.weakRebirth(d)
     return d and not d.notice and __slctx.ResetConfirm.normalize(d.context):find('that s not very much',1,true)~=nil
 end
-function __slctx.ResetConfirm.cancelRebirth(session,d,reason)
-    -- Only the matching rebirth dialog's negative button may be used. Nice,
-    -- purchase/evolution/ascension dialogs never enter this path.
+function __slctx.ResetConfirm.cancelReset(session,d,reason)
+    -- Only the matching rebirth/evolution dialog's negative button may be used.
+    -- Notices and unrelated purchase/ascension dialogs remain excluded.
     session.cancelReason=session.cancelReason or reason
     session.cancelDialog=session.cancelDialog or d
     d=session.cancelDialog
     local c=session.cancellation
     if not c then
         c={attempts=0,lastAt=-math.huge,started=__slctx.now()};session.cancellation=c
-        __slctx.ResetConfirm.note(session,'REBIRTH_REJECTED',session.cancelReason..' | '..d.text)
+        __slctx.ResetConfirm.note(session,session.kind=='evolve' and 'EVOLUTION_REJECTED' or 'REBIRTH_REJECTED',session.cancelReason..' | '..d.text)
     end
     if not __slctx.visible(d.root) then
         if c.sent then session.cancelledReason=session.cancelReason end
         return true
     end
     if __slctx.now()-c.started>__slctx.CONFIG.ActionTimeout then
-        __slctx.pause('REBIRTH_CANCEL_UNRESOLVED','Невыгодный rebirth не подтверждён; кнопка отмены не закрыла окно.');return true
+        __slctx.pause(session.kind=='evolve' and 'EVOLUTION_CANCEL_UNRESOLVED' or 'REBIRTH_CANCEL_UNRESOLVED','Сброс не подтверждён; кнопка отмены не закрыла окно.');return true
     end
     if c.attempts>=3 or __slctx.now()-c.lastAt<__slctx.CONFIG.ConfirmRetrySeconds then return true end
     local negative=d.negatives and #d.negatives==1 and d.negatives[1]
     if not negative or not __slctx.ResetConfirm.ready(negative,d.root) then return true end
     local function guard()
-        if not __slctx.ResetConfirm.valid(session) or session.kind~='rebirth' or not __slctx.visible(d.root)
+        if not __slctx.ResetConfirm.valid(session) or (session.kind~='rebirth' and session.kind~='evolve') or not __slctx.visible(d.root)
             or __slctx.ResetConfirm.buttonRole(negative)~='negative' or not __slctx.ResetConfirm.ready(negative,d.root) then return false end
-        local fresh=__slctx.ResetConfirm.inspect('rebirth',d.button,session.expected)
+        local fresh=__slctx.ResetConfirm.inspect(session.kind,d.button,session.expected)
         return fresh and fresh.root==d.root and #fresh.negatives==1 and fresh.negatives[1]==negative
     end
     if not guard() then return true end
@@ -588,7 +588,7 @@ function __slctx.ResetConfirm.poll(session)
         end
         -- p.ok means dispatch returned, NOT that the game accepted the confirmation.
     end
-    if session.cancelReason then return __slctx.ResetConfirm.cancelRebirth(session,session.cancelDialog,session.cancelReason) end
+    if session.cancelReason then return __slctx.ResetConfirm.cancelReset(session,session.cancelDialog,session.cancelReason) end
     for _,state in pairs(session.states) do
         if state.attempts>0 and not __slctx.visible(state.root) then state.closed=true end
     end
@@ -618,7 +618,7 @@ function __slctx.ResetConfirm.poll(session)
     session.candidate=d
     if session.kind=='rebirth' and not d.notice then
         if __slctx.ResetConfirm.weakRebirth(d) then
-            return __slctx.ResetConfirm.cancelRebirth(session,d,'GAME_SAYS_REWARD_TOO_SMALL')
+            return __slctx.ResetConfirm.cancelReset(session,d,'GAME_SAYS_REWARD_TOO_SMALL')
         end
     end
     if state.closed then
@@ -632,9 +632,9 @@ function __slctx.ResetConfirm.poll(session)
         return true
     end
     -- A countdown/disabled confirmation is a wait state, not a new economic veto.
-    if session.kind=='rebirth' and not d.notice and session.expected and session.expected.authorize
+    if (session.kind=='rebirth' or session.kind=='evolve') and not d.notice and session.expected and session.expected.authorize
         and not session.expected.authorize(d) then
-        return __slctx.ResetConfirm.cancelRebirth(session,d,'RESET_ECONOMY_CHANGED_AT_CONFIRMATION')
+        return __slctx.ResetConfirm.cancelReset(session,d,'RESET_ECONOMY_CHANGED_AT_CONFIRMATION')
     end
     state.readyAt=state.readyAt or __slctx.now()
     if __slctx.now()-state.firstSeen<__slctx.CONFIG.ConfirmInitialDelaySeconds

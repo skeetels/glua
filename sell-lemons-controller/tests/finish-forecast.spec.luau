@@ -87,8 +87,53 @@ test('funding all remaining purchases releases a rejected forecast without a nee
 end)
 test('uncertain rebirth scenario does not suppress a ready evolution',function()
     local c,s,r,h,B=fixture();c.HaloRun.plan(true)
-    h.economy.rebirth=h.economy
+    h.economy.scenarioReady=false;h.economy.rebirth={ready=false,scenarioReady=true}
     assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=5},nil,true,{})=='EVOLVE')
+end)
+test('ready evolution does not interrupt funded construction after rebirth',function()
+    local c,s,r,h,B=fixture()
+    s.money=B.new(1,120);s.rate=B.new(1,119)
+    local q={id='Walls',name='Walls',cost=B.new(6.913,59),available=true}
+    c.readBuy=function()return q end
+    r.evo={ready=true,index=6};r.runBuyCount=56;r.spent=B.new(0)
+    r.frontierRecovery={completePrefix=true,frontierBuys=380,frontierDone=false}
+    assert(c.HaloRun.routeEvolutionChoice({},r.evo,nil,false,{})=='CONTINUE')
+    c.Strategy.refreshResetBuy=function()r.buyQuote=q;return true end
+    c.HaloRun.observeQuote=function()end;c.HaloRun.plan=function()end
+    c.HaloRun.checkedInvestors=function()return {investors=B.new(1,120),reward=B.new(1,121),ready=true,perInvestor=.08}end
+    c.Planner.shouldInspectEvolution=function()return false end
+    c.HaloRun.review()
+    assert(r.phase=='BUY' and s.resets==0,'live ready-E/rebuilding/funded-Buy trigger must keep the current base')
+end)
+test('near Buy waits once; minor upgrades and rereads cannot extend the deadline',function()
+    local c,s,r,h,B=fixture();s.money=B.new(0);s.rate=B.new(1)
+    c.readBuy=function()return {id='last-gate',cost=B.new(5),available=false}end
+    assert(c.HaloRun.deferEvolution(false))
+    local deadline=h.evolutionBuyGate.deadline;s.time=deadline+1
+    s.rate=B.new(1e6);c.S.counts.upgrade=1000
+    assert(not c.HaloRun.deferEvolution(false) and h.evolutionBuyGate.deadline==deadline)
+    assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=6},nil,false,{})=='EVOLVE')
+end)
+test('current finish scenario earns a bounded attempt rather than immediate evolution or a permanent finish claim',function()
+    local c,s,r,h,B=fixture();s.money=B.new(0);s.rate=B.new(1)
+    c.readBuy=function()return {id='expensive-gate',cost=B.new(1000),available=false}end
+    h.economy={scenarioReady=true,certifiable=true,catalogueRoute={time=B.new(12)}}
+    assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=6},nil,false,{})=='CONTINUE')
+    assert(h.mode=='PREPARE')
+    local deadline=h.evolutionFinishTrial.deadline;s.time=deadline+1;c.S.counts.upgrade=500
+    assert(not c.HaloRun.deferEvolution(false) and h.evolutionFinishTrial.deadline==deadline)
+    assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=6},nil,false,{})=='EVOLVE')
+end)
+test('funded final route and completed base always precede evolution; passive rebirth proof needs no hypothetical boosts',function()
+    local c,s,r,h,B=fixture();s.money=B.new(100);c.HaloRun.plan(true)
+    assert(c.HaloRun.deferEvolution(false) and h.mode=='FINISH')
+    h.mode='PREPARE';r.endPurchased=true
+    local hold,why=c.HaloRun.deferEvolution(false);assert(hold and why=='HALO_COMPLETION_TAKES_PRIORITY')
+    r.endPurchased=false;s.money=B.new(0);s.rate=B.new(1)
+    c.readBuy=function()return {id='wall',cost=B.new(1,100),available=false}end
+    h.economy={rebirth={ready=true},levelProjection=false}
+    local detail={};assert(c.HaloRun.routeEvolutionChoice({}, {ready=true,index=6},nil,true,detail)=='REBIRTH')
+    assert(detail.finishAfterReset and detail.comparedEvolution)
 end)
 test('successful direct pass continues immediately; empty pass still waits and overdue review wins',function()
     local c,s,r,h=fixture();c.Strategy.stopForBlocked=function()return false end

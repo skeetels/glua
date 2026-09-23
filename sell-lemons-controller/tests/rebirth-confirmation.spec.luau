@@ -22,7 +22,8 @@ c.path=function()return 'Confirm' end
 local dialogReady=true
 c.ready=function()return dialogReady,'COUNTDOWN'end
 local cancelled=false
-c.cancelRebirth=function()cancelled=true;return true end
+local cancelReset=c.cancelReset
+c.cancelReset=function()cancelled=true;return true end
 local session={active=true,sent=true,kind='rebirth',epoch=1,states={},stages=0,attempts=0,clicked={}}
 ctx.S.resetSession=session
 local authorizations=0
@@ -53,3 +54,24 @@ assert(ctx.Strategy.peekResetInvestors(session,modal)==nil,'undispatched session
 session.sent=true;ctx.S.resetSession=nil
 assert(ctx.Strategy.peekResetInvestors(session,modal)==nil,'stale session cannot replace origin gate')
 print('PASS unmatched, undispatched and stale confirmation contexts rejected')
+do
+    cancelled=false
+    local evo={active=true,sent=true,kind='evolve',epoch=1,states={},stages=0,attempts=0,clicked={},expected={authorize=function()return false end}}
+    ctx.S.resetSession=evo;c.poll(evo)
+    assert(cancelled,'evolution economic veto must actively cancel its modal')
+    local negative={ready=true};local d={root={visible=true},button={},negatives={negative},text='Evolve!'}
+    local clicks=0
+    ctx.CONFIG.ActionTimeout=10;ctx.visible=function(o)return o.visible end
+    c.ready=function(o)return o.ready end;c.buttonRole=function(o)return o==negative and 'negative' or 'positive' end
+    c.inspect=function(kind,button)assert(kind=='evolve' and button==d.button);return d end
+    ctx.candidateModes=function()return {'fixture'}end
+    ctx.dispatch=function(o,_,options)
+        assert(o==negative and options.guard());clicks=clicks+1;d.root.visible=false;return true
+    end
+    setfenv(cancelReset,setmetatable({task={spawn=function(fn)fn();return {}end}}, {__index=getfenv()}))
+    cancelReset(evo,d,'CURRENT_ROUTE_PROTECTED')
+    assert(clicks==1 and evo.cancelledReason=='CURRENT_ROUTE_PROTECTED' and not ctx.S.resetChildPending)
+    evo.kind='halo';evo.cancellation=nil;evo.cancelDialog=nil;d.root.visible=true
+    cancelReset(evo,d,'WRONG_DIALOG');assert(clicks==1,'unrelated ascension must not be cancelled')
+end
+print('PASS evolution veto closes only its matched negative confirmation; unrelated ascension remains untouched')

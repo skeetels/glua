@@ -4,7 +4,7 @@ local inspect=(function()
 -- Does not require game modules, invoke remotes, change attributes or click UI.
 return function()
     local function log(s)print('[SL ACTION DATA] '..s)end
-    log('START v3; world overrides and investor bonus; read only')
+    log('START v4; evolution/Halo handlers, owned remotes and state; read only')
     assert(game.PlaceId==79268393072444,'Run in Sell Lemons')
     local env=type(getgenv)=='function' and getgenv() or _G
     local read=type(env.getscriptbytecode)=='function' and env.getscriptbytecode or getscriptbytecode
@@ -30,6 +30,11 @@ return function()
     end
     if own then
         log('OWNED '..own:GetFullName())
+        local remotes=own:FindFirstChild('Remotes')
+        for _,name in ipairs({'Rebirth','Evolve','Evolved','Ascend','Ascended'})do
+            local o=remotes and remotes:FindFirstChild(name)
+            log('RESET_REMOTE '..name..' '..(o and (o.ClassName..' '..o:GetFullName()) or 'MISSING'))
+        end
         local values=own:FindFirstChild('Values')
         if values then
             local list={values};for _,o in ipairs(values:GetDescendants())do list[#list+1]=o end
@@ -47,7 +52,8 @@ return function()
             end
         end
     end
-    local ranks={placedifferences=0,placedifferenceservice=1,premiumpurchases=2,placeservice=3}
+    local ranks={clienttycoonevolution=0,clienttycoonascension=1,tycoonevolution=2,tycoonascension=3,
+        uievolutionmenu=4,uiascensionmenu=5,remoterequest=6,tycoonvalues=7}
     local rows={}
     for _,o in ipairs(game:GetService('ReplicatedStorage'):GetDescendants())do
         if o:IsA('ModuleScript') then

@@ -323,14 +323,53 @@ function __slctx.HaloRun.peekProgress()
     end
     h.passiveInvestorText=signature
 end
+function __slctx.HaloRun.deferEvolution(refresh)
+    local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state()
+    if r.endPurchased or r.completionSeen then return true,'HALO_COMPLETION_TAKES_PRIORITY' end
+    if refresh then __slctx.HaloRun.plan(true)end
+    if h.mode=='FINISH' then return true,'FINISH_ROUTE_PROTECTED' end
+    local q=__slctx.readBuy and __slctx.readBuy();local money=__slctx.cash()
+    if q and q.cost and money and q.available and __slctx.BN.cmp(money,q.cost)>=0 then
+        return true,'CONTINUE_FUNDED_CONSTRUCTION'
+    end
+    -- A scenario can justify a bounded construction attempt, not an unconditional
+    -- FINISH promise. Its original deadline never slides with minor upgrades.
+    local v=h.economy;local trial=h.evolutionFinishTrial
+    if not trial and v and v.scenarioReady and v.certifiable and not v.levelProjection and v.catalogueRoute then
+        local seconds=__slctx.BN.number(v.catalogueRoute.time)
+        if seconds and seconds>=0 and seconds<math.huge then
+            local limit=__slctx.CONFIG.FinishMaximumWaitSeconds
+                +#__slctx.HaloCatalogue*__slctx.Strategy.effectiveActionSeconds('buy')
+            trial={started=__slctx.now(),deadline=__slctx.now()+math.min(seconds,limit)+__slctx.CONFIG.HaloFinishGraceSeconds}
+            h.evolutionFinishTrial=trial
+            __slctx.log('EVOLUTION_FINISH_TRIAL','continue current base; bounded scenario seconds='..(trial.deadline-trial.started)..'; no reset sent')
+        end
+    end
+    if trial and __slctx.now()<trial.deadline then return true,'FINISH_SCENARIO_TRIAL_ACTIVE' end
+    if not q or not q.cost or not money then
+        if __slctx.CONFIG.DirectPurchases and __slctx.readBuy then return true,'EVOLUTION_WAIT_CURRENT_BUY_DATA' end
+        return false
+    end
+    local key=tostring(q.id)..'/'..__slctx.BN.format(q.cost)
+    local gate=h.evolutionBuyGate
+    if not gate or gate.key~=key then
+        gate={key=key,deadline=__slctx.now()+__slctx.CONFIG.BuildShortWaitSeconds};h.evolutionBuyGate=gate
+    end
+    local rate=__slctx.HaloRun.income();local eta=__slctx.Core.eta(money,q.cost,rate)
+    if eta and eta>=0 and eta<=math.max(0,gate.deadline-__slctx.now()) and __slctx.now()<gate.deadline then
+        return true,'CONTINUE_NEAR_FUNDED_CONSTRUCTION'
+    end
+    return false,'CURRENT_ROUTE_NOT_WITHIN_BOUNDED_FINISH'
+end
 function __slctx.HaloRun.routeEvolutionChoice(inv,evo,goal,yes,detail)
     local r=__slctx.Strategy.route();local h=__slctx.HaloRun.state();local v=h.economy
     if not evo or not evo.ready then return 'PREPARE' end
     if h.mode=='FINISH' then return 'FINISH' end
+    if __slctx.HaloRun.deferEvolution(false) then return 'CONTINUE' end
     -- Avoid destroying a finish-capable bank solely because Evolve is lit up.
     -- The E-ready exception is narrow and carried by the final execution lease.
     local after=v and v.rebirth
-    if yes and detail and after and after.ready and after.catalogueRoute and not v.levelProjection then
+    if yes and detail and after and after.ready and not v.levelProjection then
         detail.comparedEvolution=true;detail.finishAfterReset=true
         detail.evolutionIndex=evo.index;detail.evolutionBonus=evo.bonus
         detail.evolutionAlternativeRate=v.evolutionRestoredRate
@@ -653,6 +692,13 @@ function __slctx.HaloRun.review()
         if not evo then if __slctx.live()then __slctx.pause('EVOLUTION_READ_FAILED','Не удалось проверить этап.')end;return end
         -- Decide after the same-state rebirth-to-final calculation below.
     end
+    if r.evo and r.evo.ready then
+        local hold,reason=__slctx.HaloRun.deferEvolution(false)
+        if hold then
+            __slctx.log('EVOLUTION_DEFERRED',reason..'; current construction retained')
+            __slctx.HaloRun.resume('BUY','продолжаю текущую базу; эволюция отложена');return
+        end
+    end
     if __slctx.CONFIG.AutoRebirth and __slctx.S.resetEnabled and not (r.evo and r.evo.ready) and inv.investors.m==0 and inv.ready and __slctx.BN.cmp(inv.reward,__slctx.BN.new(__slctx.CONFIG.TabletReserve))>=0 then
         local ctx={rate=__slctx.Strategy.rate(),plannedSpend=__slctx.BN.new(0)}
         local d={cost=__slctx.CONFIG.InitialFullLayoutSeconds,authorization='first-bank-30',restoreQuality='first investor bank'}
@@ -667,9 +713,10 @@ function __slctx.HaloRun.review()
         local yes,reason,gain,detail,ctx=__slctx.HaloRun.resetForecast(inv,goal)
         r.gain=gain;r.lastDecision=reason;r.lastResetEstimate=detail;h.lastCompare=detail
         local choice=__slctx.HaloRun.routeEvolutionChoice(inv,r.evo,goal,yes,detail)
+        if choice=='CONTINUE' or choice=='FINISH' then __slctx.HaloRun.resume('BUY','текущий маршрут сохранён перед эволюцией');return end
         if choice=='EVOLVE' then
             r.capabilityOnly=nil;r.reserveSince=__slctx.now();h.progressReviewHint=nil
-            __slctx.Strategy.phase('EVOLVE_RESERVE','следующая эволюция: rebirth ещё не обеспечивает финальный маршрут');return
+            __slctx.Strategy.phase('EVOLVE_RESERVE','быстрое завершение текущей базы не подтверждено; готова эволюция');return
         end
         if yes then
             if ctx.plannedSpend.m>0 then

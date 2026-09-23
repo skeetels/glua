@@ -90,6 +90,13 @@ assert(c.doReset('evolve') and calls[1]=='navigate evolution' and calls[2]=='leg
 assert(c.doReset('halo') and calls[3]=='navigate halo' and calls[4]=='legacy halo')
 assert(c.readInvestors(),'direct readers must be restored after GUI execution')
 print('PASS current policy, fresh evolution, malformed state and retained GUI evolution/Halo dispatch')
+do
+    local c,_,_,_,r,calls=fixture('ok')
+    c.HaloRun={deferEvolution=function(refresh)assert(refresh);return true,'CONTINUE_FUNDED_CONSTRUCTION'end}
+    c.Strategy.phase=function(phase)r.phase=phase end
+    assert(not c.doReset('evolve') and #calls==0 and r.phase=='BUY','protected route must veto before opening the evolution menu')
+end
+print('PASS direct prestige wrapper protects the current construction before any evolution GUI navigation')
 local c,v=fixture('ok')
 for _,key in ipairs({'Evolution','Ascension','Rebirths','TotalRebirths','TotalEvolves'})do v.attrs[key]=nil end
 local initial=assert(c.DirectPrestige.snapshot())

@@ -167,6 +167,13 @@ return function(ctx)
     end
     local oldReset=ctx.doReset
     function ctx.doReset(kind)
+        if kind=='evolve' and ctx.HaloRun and ctx.HaloRun.deferEvolution then
+            local hold,reason=ctx.HaloRun.deferEvolution(true)
+            if hold then
+                ctx.log('EVOLUTION_DEFERRED',reason..'; reset menu not opened')
+                ctx.Strategy.phase(reason=='HALO_COMPLETION_TAKES_PRIORITY' and 'HALO' or 'BUY','завершаю текущую базу; эволюция отложена');return false
+            end
+        end
         if not ctx.CONFIG.DirectPrestige then return oldReset(kind)end
         if kind=='rebirth' then return P.rebirth()end
         -- The retained confirmation flow still verifies actual GUI gates/progress.
