@@ -2,6 +2,7 @@ local initialize=require('../src/adapters/DirectPurchases')
 local function fixture(mode)
     local c={};require('../src/config')(c);require('../src/core/Numeric')(c);c.BN=c.Core.BN
     require('../src/data/GameBalance')(c);require('../src/core/UpgradeMath')(c);require('../src/core/EconomyPlanner')(c)
+    require('../src/adapters/GuiAccess')(c);c.Safety={};require('../src/runtime/Transactions')(c)
     local time=0;local queue={};local calls={}
     local function object(name,attrs,children)
         local o={Name=name,attrs=attrs or {},children=children or {},ClassName='Configuration'}
@@ -73,8 +74,57 @@ local function fixture(mode)
             local pending=queue;queue={};for _,fn in ipairs(pending)do fn()end
         end}}, {__index=getfenv()})
     setfenv(initialize,env);initialize(c)
-    return c,values,powers,ledger,calls,queue,nextItem,route
+    return c,values,powers,ledger,calls,queue,nextItem,route,function(dt)time=time+dt end
 end
+local function savingFixture()
+    local c,v,p,l,calls,_,o,r,advance=fixture('ok')
+    local directPurchase=c.Strategy.safePurchase
+    require('../src/strategy/RouteState')(c);require('../src/strategy/ResetPlanning')(c);require('../src/strategy/Growth')(c)
+    c.Strategy.safePurchase=directPurchase
+    c.Driver={};r.phase='CHECKPOINT'
+    c.cash=function()return c.UpgradeMath.bn(v.attrs.Cash)end
+    c.updateRate=function()end
+    c.Strategy.rate=function()return c.UpgradeMath.bn(c.GameBalance.PurchasePrices.Juicer)end
+    v.attrs.Cash=c.GameBalance.PurchasePrices.Juicer-1
+    local q=assert(c.readBuy());assert(not q.available)
+    assert(c.Strategy.reserveGoal(q,c.Strategy.rate(),'BUILD_TARGET_SOON'))
+    return c,v,p,l,calls,o,r,advance,q
+end
+do
+    local c,v,p,l,calls,o,r,advance,q=savingFixture()
+    advance(.2);v.attrs.Cash=q.priceLog
+    c.Strategy.waitCash()
+    assert(l.attrs.Juicer and #calls==1 and c.S.counts.buy==1 and r.phase=='BUY' and not r.goal and not r.wall,
+        'funded direct Buy must leave WAIT_CASH immediately without requiring a GUI button')
+end
+print('PASS real direct quote, affordability, reservation and receipt buy immediately after funding without GUI')
+do
+    local c,v,p,l,calls,o,r,advance,q=savingFixture()
+    local deadline=r.goal.deadline
+    advance(deadline-c.now());v.attrs.Cash=q.priceLog
+    c.Strategy.waitCash()
+    assert(l.attrs.Juicer and #calls==1 and r.phase=='BUY' and not r.goal,'funding on the deadline buys before expiry')
+    local c,v,p,l,calls,o,r,advance,q=savingFixture()
+    advance(.2);v.attrs.Cash=q.priceLog
+    assert(c.Strategy.safePurchase(assert(c.readBuy())))
+    assert(c.BN.cmp(c.cash(),q.cost)<0,'old quote must be unfunded for this regression')
+    c.Strategy.waitCash()
+    assert(#calls==1 and r.phase=='BUY' and not r.goal,'externally completed target must release saving before its old price is funded')
+    local c,v,p,l,calls,o,r,advance,q=savingFixture()
+    advance(.2);v.attrs.Cash=q.priceLog;p.children.Permanent.attrs.BuyNext=1;v.attrs.BuyNextUses=150
+    c.Strategy.waitCash()
+    assert(#calls==0 and r.phase=='BUY' and not r.goal,'exhausted Buy uses are not a cash shortage')
+end
+print('PASS deadline funding buys once; completed targets and funded but exhausted Buy release saving without a request')
+do
+    local c,v,p,l,calls,o,r,advance,q=savingFixture()
+    assert(not c.affordable(q,q.cost),'unavailable direct quote must remain blocked')
+    local d={source='direct',available=true,cost=q.cost}
+    assert(c.affordable(d,q.cost) and not c.affordable(d,c.BN.new(0)))
+    assert(not c.affordable({available=true,cost=q.cost},q.cost),'GUI quotes still require their button')
+    assert(not c.affordable({available=true,cost=q.cost,button={Name='Robux'}},q.cost),'paid GUI button must remain blocked')
+end
+print('PASS direct stand quotes use cash and availability; missing/paid GUI buttons keep their guards')
 local c,v,p,l,calls=fixture('ok');local q=assert(c.readBuy())
 assert(q.key=='Juicer' and q.name=='Lime Juicer' and q.cost and q.available and q.source=='directBuy')
 assert(c.ensureStrip() and c.manageTab('Powers') and c.ensureTablet() and not c.S.tablet.owned and c.canUpgrade())

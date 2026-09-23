@@ -75,7 +75,7 @@ __slctx.CONFIG = {
     AllowInputPair = true,
     AutoRebirth = true, AutoEvolution = true, AutoHalo = true,
     TabletReserve = 400,
-    MaxWaitSeconds = 30, -- One non-renewable budget per quoted base target.
+    MaxWaitSeconds = 5, -- One non-renewable budget per quoted base target; buy as soon as funded.
     EconomicPlanning = true,
     CapabilityRebirth = true,
     CapabilityReviewPurchases = 32, -- Review boundaries never complete or discard a partial pass.
@@ -85,7 +85,7 @@ __slctx.CONFIG = {
     ObjectiveVersion = 28, -- Capital/observation schema remains compatible.
     ConstructionPolicy = 282,
     BuildQuoteFreshSeconds = 12, -- Valid quote carried across menu-only navigation, not an extra wait.
-    BuildShortWaitSeconds = 8,
+    BuildShortWaitSeconds = 5,
     BuildWallConfirmSeconds = 8, -- Only for a repeated funding wall BEFORE the former build frontier.
     BuildWallWeakGain = 0.05,
     ProgressMaxBuild = true, -- Continue milestone MAX checks after income parity, not only during recovery.

@@ -4,6 +4,7 @@ local function fixture(stalled)
     local c={};require('../src/config')(c);require('../src/core/Numeric')(c)
     require('../src/core/HaloPlanner')(c);require('../src/core/EconomyPlanner')(c)
     c.BN=c.Core.BN;local B=c.BN
+    require('../src/adapters/GuiAccess')(c);c.Safety={};require('../src/runtime/Transactions')(c)
     local s={time=594,money=B.new(1.146,84),rate=B.new(4.19,83),logs={},resets=0,buys=0,growth=.005}
     local q={id='directBuy:PublicCitrusWorks',name='Public Citrus Works',cost=B.new(1.557,84),
         info='',kind='buy',source='directBuy',available=false,observedAt=s.time}
@@ -19,7 +20,8 @@ local function fixture(stalled)
         validateResetIntent=function()return true end}
     c.now=function()return s.time end;c.cash=function()return s.money end;c.live=function()return true end
     c.log=function(k,v)s.logs[#s.logs+1]={k,v}end;c.status=function(k)s.status=k end
-    c.readBuy=function()q.observedAt=s.time;return q end
+    c.readBuy=function()q.observedAt=s.time;q.available=B.cmp(s.money,q.cost)>=0;return q end
+    c.focusCandidate=function()return c.readBuy()end
     c.buyComplete=function()return false end;c.canUpgrade=function()return true end
     c.updateRate=function()end;c.paths={};c.t=function()return ''end
     c.doReset=function(kind)
@@ -69,19 +71,19 @@ do
     assert(s.resets==0 and r.phase=='WAIT_CASH' and r.goal,'near-buy decision must actually save rather than spend on stands')
     local deadline=r.goal.deadline
     for i=1,8 do
-        s.time=s.time+1;r.pass.id=r.pass.id+1;r.buildWall.pass=r.pass.id
+        s.time=s.time+.25;r.pass.id=r.pass.id+1;r.buildWall.pass=r.pass.id
         c.Strategy.observeBuildQuote(c.readBuy());c.HaloRun.resetForecast(inv,nil)
         assert(r.savingsBudget.deadline==deadline,'new quotes and weak passes cannot renew the same deadline')
     end
     s.time=deadline;s.money=B.new(0);r.buildWall.weak=40
     c.Strategy.waitCash();assert(r.phase=='CHECKPOINT' and not r.goal)
+    s.time=math.max(s.time,r.buildWall.started+c.CONFIG.BuildWallConfirmSeconds)
     c.HaloRun.review();assert(s.resets==1,'expired reservation must release the economic comparison')
 end
 print('PASS a fresh nearby purchase gets one real saving phase, then an economic comparison without deadline renewal')
 do
     local c,s,r,h,q,inv,B=fixture(false);c.HaloRun.review()
     local deadline=r.goal.deadline;s.time=deadline;s.money=q.cost;q.available=true
-    c.focusCandidate=function()return q end;c.affordable=function()return true end
     c.Strategy.safePurchase=function(candidate)assert(candidate==q);s.buys=s.buys+1;return true end
     c.Strategy.waitCash();assert(s.buys==1 and s.resets==0 and r.phase=='BUY','funding on the deadline still buys first')
 end
@@ -104,10 +106,10 @@ end
 print('PASS funded buys, recovery, close evolution, strong growth, FINISH and quote identity retain their guards')
 do
     local c,s,r,h,q,inv,B=fixture(false)
-    q.multiplier=c.CONFIG.MajorMultiplier;q.cost=B.add(s.money,B.mul(s.rate,12))
+    q.multiplier=c.CONFIG.MajorMultiplier;q.cost=B.add(s.money,B.mul(s.rate,4))
     c.HaloRun.review();assert(r.phase=='WAIT_CASH' and s.resets==0)
     local deadline=r.goal.deadline
-    s.time=deadline+1;r.buildWall.weak=40
+    s.time=math.max(deadline+1,r.buildWall.started+c.CONFIG.BuildWallConfirmSeconds);r.buildWall.weak=40
     c.Strategy.waitCash();c.HaloRun.review()
     assert(s.resets==1 and r.savingsBudget.deadline==deadline,'major target must use the same expiring wait')
     local c,s,r,h,q,inv,B=fixture(true)
@@ -123,3 +125,20 @@ do
     assert(c.HaloRun.objectiveWatch() and r.phase=='CAPABILITY','saving cannot hide a newly ready evolution')
 end
 print('PASS ready evolution interrupts a saving phase through the existing objective review')
+
+do
+    local c,s,r,h,q,inv,B=fixture(false)
+    assert(c.CONFIG.MaxWaitSeconds==5 and c.CONFIG.BuildShortWaitSeconds==5)
+    r.savingsBudget={id=q.id,start=s.time-2,deadline=s.time+28}
+    assert(c.Strategy.savingsRemaining(q,false)==3,'reload must cap an old 30-second budget to five seconds total')
+    local deadline=r.savingsBudget.deadline
+    s.time=s.time+4
+    assert(not c.Strategy.reserveGoal(q,s.rate,'test') and r.savingsBudget.deadline==deadline)
+    local c,s,r,h,q,inv,B=fixture(true)
+    assert(not c.Strategy.reserveGoal(q,s.rate,'test') and not r.goal,
+        'arming an already aged wall must not briefly enter WAIT_CASH with an expired deadline')
+    local c,s,r,h,q,inv,B=fixture(false)
+    s.money=q.cost
+    assert(not c.Strategy.reserveGoal(q,s.rate,'test') and not r.goal,'funded targets never require a reservation')
+end
+print('PASS five-second limit caps retained budgets, refuses aged walls and skips already funded targets')

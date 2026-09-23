@@ -107,7 +107,7 @@ test('ready evolution does not interrupt funded construction after rebirth',func
 end)
 test('near Buy waits once; minor upgrades and rereads cannot extend the deadline',function()
     local c,s,r,h,B=fixture();s.money=B.new(0);s.rate=B.new(1)
-    c.readBuy=function()return {id='last-gate',cost=B.new(5),available=false}end
+    c.readBuy=function()return {id='last-gate',cost=B.new(4*c.CONFIG.CatalogueIncomeMargin),available=false}end
     assert(c.HaloRun.deferEvolution(false))
     local deadline=h.evolutionBuyGate.deadline;s.time=deadline+1
     s.rate=B.new(1e6);c.S.counts.upgrade=1000

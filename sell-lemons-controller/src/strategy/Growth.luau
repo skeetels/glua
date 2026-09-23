@@ -154,6 +154,8 @@ function __slctx.Strategy.savingsRemaining(q,arm)
             ..'s; remaining='..string.format('%.2f',math.max(0,r.savingsBudget.deadline-__slctx.now()))..'s; deadline cannot renew')
     end
     local budget=r.savingsBudget
+    -- Reload may retain a deadline from an older, longer wait configuration.
+    if budget then budget.deadline=math.min(budget.deadline,budget.start+__slctx.CONFIG.MaxWaitSeconds) end
     return budget and math.max(0,budget.deadline-__slctx.now()) or __slctx.CONFIG.MaxWaitSeconds
 end
 
@@ -163,7 +165,8 @@ function __slctx.Strategy.reserveGoal(q,rate,reason)
     if not eta or eta<=0 or eta==math.huge then return false end
     local remaining=__slctx.Strategy.savingsRemaining(q,false)
     if eta>remaining or remaining<=0 then return false end
-    __slctx.Strategy.savingsRemaining(q,true)
+    remaining=__slctx.Strategy.savingsRemaining(q,true)
+    if eta>remaining or remaining<=0 then return false end
     local budget=r.savingsBudget
     r.wall={start=budget.start,deadline=budget.deadline,expired={}}
     r.goal={id=q.id,candidate=q,deadline=budget.deadline,eta=eta,source='economic target ETA'}
@@ -456,25 +459,39 @@ function __slctx.Strategy.waitCash()
     local r=__slctx.Strategy.route();local goal=r.goal
     if not goal then __slctx.Strategy.phase('CHECKPOINT','goal cleared');return end
     local c=goal.candidate;local amount=__slctx.cash()
-    if amount and c.cost and __slctx.BN.cmp(amount,c.cost)>=0 then
-        -- At the exact deadline, an affordable purchase wins over a reset.
-        local fresh,why=__slctx.focusCandidate(c)
-        if fresh and __slctx.affordable(fresh,__slctx.cash()) then
-            if __slctx.Strategy.safePurchase(fresh) then
-                r.upgradeWall=false;r.majorDeclined=nil
-                __slctx.Strategy.phase(fresh.kind=='buy' and 'BUY' or 'UPGRADE','saved target purchased')
-            end
-            return
+    local fresh,why
+    -- Direct reads do not navigate menus: notice changed/completed targets even
+    -- before the OLD quote is funded. GUI fallback still opens only when funded.
+    if c.source=='directBuy' or c.source=='direct'
+        or amount and c.cost and __slctx.BN.cmp(amount,c.cost)>=0 then
+        fresh,why=__slctx.focusCandidate(c)
+        if fresh then c=fresh;goal.candidate=fresh;amount=__slctx.cash() end
+    end
+    -- An affordable purchase wins even on the exact deadline.
+    if fresh and __slctx.affordable(fresh,amount) then
+        if __slctx.Strategy.safePurchase(fresh) then
+            r.goal=nil;r.wall=nil;r.waitSuggestion=nil;r.upgradeWall=false;r.majorDeclined=nil
+            __slctx.Strategy.phase(fresh.kind=='buy' and 'BUY' or 'UPGRADE','saved target purchased')
+        elseif __slctx.live() and not __slctx.S.actionPending then
+            __slctx.Strategy.resumeGrowth(c,'reserved purchase not sent; replan')
         end
-        if why=='QUOTE_CHANGED_AFTER_NAVIGATION' then
-            __slctx.Strategy.resumeGrowth(c,'reserved quote changed; replan');return
-        end
-        if not __slctx.live() then return end
+        return
+    end
+    if why=='QUOTE_CHANGED_AFTER_NAVIGATION' or why=='QUOTE_CHANGED' then
+        __slctx.Strategy.resumeGrowth(c,'reserved quote changed; replan');return
+    end
+    if fresh and fresh.available==false and amount and c.cost and __slctx.BN.cmp(amount,c.cost)>=0 then
+        __slctx.Strategy.resumeGrowth(c,'reserved purchase is funded but unavailable; replan');return
+    end
+    if not __slctx.live() then return end
+    if r.savingsBudget and r.savingsBudget.id==goal.id then
+        __slctx.Strategy.savingsRemaining(c,false)
+        goal.deadline=math.min(goal.deadline,r.savingsBudget.deadline)
     end
     if __slctx.now()>=goal.deadline then
         if r.wall then r.wall.expired[goal.id]=true end
         r.majorDeclined=true;r.goal=nil;r.waitSuggestion=nil
-        __slctx.log('RESERVE_EXPIRED','Original deadline retained; no fresh 30s loop')
+        __slctx.log('RESERVE_EXPIRED','Original deadline retained; no renewed '..__slctx.CONFIG.MaxWaitSeconds..'s wait')
         -- A reserve opened before exhausting upgrades must return to growth, not reset.
         if not r.upgradeWall then __slctx.Strategy.phase('UPGRADE','reservation expired; finish upgrades')
         else __slctx.Strategy.phase('CHECKPOINT','reservation expired; compare rebirth gain') end

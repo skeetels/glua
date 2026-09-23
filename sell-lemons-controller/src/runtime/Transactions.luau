@@ -12,6 +12,11 @@ function __slctx.candidateFresh(c)
     return same and __slctx.childText(b,'Stack')==(c.stackRaw or c.stack) and __slctx.visible(row) and __slctx.usable(b),{button=b,cost=currentCost}
 end
 function __slctx.affordable(c,amount)
+    -- Direct quotes have no GUI button. Their adapters validate the current
+    -- cash price, capacity and reset epoch again immediately before dispatch.
+    if c.source=='directBuy' or c.source=='direct' then
+        return c.cost~=nil and amount~=nil and __slctx.BN.cmp(amount,c.cost)>=0 and c.available==true
+    end
     -- Planning uses a quote read in its own menu, not Visible on a currently hidden tab.
     -- Actual availability and price are checked again by buy() AFTER opening that menu.
     local ready=c.available
