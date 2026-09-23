@@ -372,6 +372,10 @@ function __slctx.Strategy.stopForBlocked()
     end
     local key,v=next(r.blocked or {})
     if not key then return false end
+    if v.c.source=='direct' or v.c.source=='directBuy' then
+        __slctx.pause('DIRECT_OUTCOME_UNRESOLVED','Не подтверждён один отправленный запрос: '..v.c.name..'. Повтор не отправлен; F7 — журнал.')
+        return true
+    end
     __slctx.pause('PURCHASE_RECOVERY_EXHAUSTED','После '..__slctx.CONFIG.PurchaseAttempts..' проверенных попыток не подтверждено: '
         ..v.c.name..'. Другие доступные покупки обработаны; rebirth не используется как исправление ошибки. F7 — журнал.')
     return true

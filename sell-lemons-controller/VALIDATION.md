@@ -63,3 +63,12 @@ At 06:38:52 (UTC+5), v2 ran without require errors but sent no requests: the new
 - Added exact Balance PurchasePrices/PurchaseOrder and Config investor-power prices. Powers and Buy use no game-module require, mouse, UI click, menu visibility, or forever-purchase flag. All participating modules are fingerprinted before dispatch. Reset/reward menus remain.
 - Offline fixtures cover real missing-card layout, Buy order/localized names, exact replicated ownership receipts, two Buy steps without GUI, stale quotes, rejected/silent RPCs, reset during dispatch, timeout and late cancellation; Powers tests cover permanent plus temporary levels, exact level increments, fresh funds and cumulative investor retention. All prior forecast and supervisor regressions pass.
 - Full live 4.0.4 acceptance is pending. Concurrent stand speed, direct Powers and Buy success, and a complete Halo cycle are not established by offline mocks.
+
+
+## 4.0.5 external reset reconciliation
+
+- Live 4.0.4 at 07:25:34–07:25:35 (UTC+5) recorded two DIRECT_ACTION_RECEIPT events for UpgradeStack and one for Windows. These were replicated-state receipts from code with no GUI action path. A complete parallel stand pass or Halo cycle is still unverified.
+- The preceding Mobile App call returned `not purchasable (disabled)`. Between runs the captured state moved E2 -> E3, TotalEvolves 163 -> 164, TotalRebirths 1107 -> 1108. The failed old-cycle purchase incorrectly survived F6 resume and stopped the new route. Whether the reset had already begun when the server rejected Mobile App is not proven.
+- 4.0.5 compares owned-base identity and replicated reset counters before the next worker step. A proven external reset starts fresh observations; it neither records a controller reset nor credits the unresolved purchase. Same-cycle failures, incomplete counters and still-pending calls remain blocked. Rebirth retains the cumulative investor budget.
+- Regression reproduces a rejected direct Buy, resume in the same cycle, external evolution and a successful fresh Buy. Separate assertions cover balance-only changes, missing counters, pending calls and rebirth spending retention. This is offline reproduction; live acceptance of the fix is pending.
+- ActionInspection v2 completed at 07:32:53, exporting all 24 selected reset/confirmation modules with matching sizes, checksums and bytecode structural validation. No reset was sent by the diagnostic. Reset integration remains in progress.

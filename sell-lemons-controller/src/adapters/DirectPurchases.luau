@@ -9,6 +9,77 @@ return function(ctx)
         for _,k in ipairs({'Evolution','Ascension','Rebirths','TotalRebirths','TotalEvolves'})do if a.epoch[k]~=b.epoch[k]then return false end end
         return true
     end
+    -- Only replicated reset counters establish a new cycle. A lower wallet or
+    -- missing UI alone cannot resolve an unknown purchase in the current cycle.
+    function A.laterReset(a,b)
+        if not a or not b or a.own~=b.own or a.root~=b.root or a.values~=b.values then return nil end
+        local x,y=a.epoch,b.epoch
+        local function increased(k)return integer(x[k]) and integer(y[k]) and y[k]>x[k]end
+        local function equal(k)return integer(x[k]) and x[k]==y[k]end
+        if increased('Ascension')then return 'halo' end
+        if not equal('Ascension')then return nil end
+        if increased('TotalEvolves') or increased('Evolution')then return 'evolve' end
+        if not equal('Evolution')then return nil end
+        if increased('TotalRebirths') or increased('Rebirths')then return 'rebirth' end
+    end
+    function A.refreshEpoch()
+        if ctx.S.actionPending or ctx.S.resetChildPending or ctx.S.resetSession or ctx.S.buyHold then return false,'ACTION_PENDING' end
+        local s,why=D.state();if not s then return false,why end
+        local r=ctx.Strategy.route();local prior=r.directEpoch
+        if not prior then
+            for _,v in pairs(r.blocked or {})do
+                if v.c and A.laterReset(v.c.snapshot,s)then prior=v.c.snapshot;break end
+            end
+            local item=r.powerUnresolved and r.powerUnresolved.item
+            if not prior and item and A.laterReset(item.snapshot,s)then prior=item.snapshot end
+        end
+        local kind=A.laterReset(prior,s)
+        if kind then
+            -- Build a clean observation route, without recording our own reset
+            -- receipt or treating an obsolete purchase as successful.
+            local fresh=ctx.Strategy.new();fresh.blocked={}
+            for key,v in pairs(r.blocked or {})do
+                if not A.laterReset(v.c and v.c.snapshot,s)then fresh.blocked[key]=v end
+            end
+            local item=r.powerUnresolved and r.powerUnresolved.item
+            if item and not A.laterReset(item.snapshot,s)then fresh.powerUnresolved=r.powerUnresolved end
+            if kind=='rebirth' then
+                for _,key in ipairs({'spent','spentUnknown','powerBase','powerUsed','powerBank','powerSkipped'})do fresh[key]=r[key]end
+            end
+            fresh.cleanRun=false;fresh.reason='external '..kind;fresh.directEpoch=s
+            ctx.S.route=fresh;A.map=nil
+            ctx.S.tablet=nil;ctx.S.prestige=nil;ctx.S.catalog={};ctx.S.catalogDirty=true
+            ctx.S.incomeAttempts={};ctx.S.nextIncomeAt=0;ctx.S.upgradeVisited={}
+            if ctx.S.rate then ctx.S.rate:reset()end
+            if ctx.S.cashFlow then ctx.S.cashFlow:reset()end
+            if ctx.Observer then ctx.Observer.store:invalidate('external '..kind)end
+            ctx.log('EXTERNAL_RESET_OBSERVED',kind..'; discarded old observations; no reset or purchase receipt credited')
+        elseif prior and not same(prior,s)then
+            return false,'RESET_STATE_TRANSITION'
+        else r.directEpoch=s end
+        return true
+    end
+    local oldStep=ctx.step
+    if oldStep then
+        function ctx.step()
+            if ctx.CONFIG.DirectPurchases then
+                local ready,why=A.refreshEpoch()
+                if not ready then
+                    if why~='ACTION_PENDING' then ctx.pause('DIRECT_STATE_UNAVAILABLE',tostring(why))end
+                    return
+                end
+            end
+            return oldStep()
+        end
+    end
+    local oldReset=ctx.Strategy.afterReset
+    if oldReset then
+        function ctx.Strategy.afterReset(kind,before)
+            oldReset(kind,before)
+            ctx.Strategy.route().directEpoch=D.state()
+            A.map=nil
+        end
+    end
     local function powerLevel(s,name)
         local temporary=attr(s.powers,name) or 0;local permanent=attr(child(s.powers,'Permanent'),name) or 0
         if not integer(temporary) or not integer(permanent) then return nil end

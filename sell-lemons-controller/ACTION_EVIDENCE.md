@@ -40,3 +40,12 @@ At 07:11 (UTC+5), ActionInspection v1 exported the Powers/Buy dependencies witho
 | TycoonPurchases | 2551 | 2335596492 | IsPurchased uses the main Purchases attribute; its second result indicates permanence. |
 
 4.0.4 sends Purchase(true, false) only for ordinary cash purchases with a current quote and available Remote Buy uses. It sends UpgradePowerLevel(name, 1) only within the investor budget. A returned RPC alone never commits either action: the purchase ledger or exact power level must change in the same owned base/reset epoch. New live acceptance remains pending.
+
+
+## 4.0.5 external reset reconciliation
+
+- Live 4.0.4 at 07:25:34–07:25:35 (UTC+5) recorded two DIRECT_ACTION_RECEIPT events for UpgradeStack and one for Windows. These were replicated-state receipts from code with no GUI action path. A complete parallel stand pass or Halo cycle is still unverified.
+- The preceding Mobile App call returned `not purchasable (disabled)`. Between runs the captured state moved E2 -> E3, TotalEvolves 163 -> 164, TotalRebirths 1107 -> 1108. The failed old-cycle purchase incorrectly survived F6 resume and stopped the new route. Whether the reset had already begun when the server rejected Mobile App is not proven.
+- 4.0.5 compares owned-base identity and replicated reset counters before the next worker step. A proven external reset starts fresh observations; it neither records a controller reset nor credits the unresolved purchase. Same-cycle failures, incomplete counters and still-pending calls remain blocked. Rebirth retains the cumulative investor budget.
+- Regression reproduces a rejected direct Buy, resume in the same cycle, external evolution and a successful fresh Buy. Separate assertions cover balance-only changes, missing counters, pending calls and rebirth spending retention. This is offline reproduction; live acceptance of the fix is pending.
+- ActionInspection v2 completed at 07:32:53, exporting all 24 selected reset/confirmation modules with matching sizes, checksums and bytecode structural validation. No reset was sent by the diagnostic. Reset integration remains in progress.

@@ -61,6 +61,7 @@ return function(ctx)
         return oldReport()..'\n\nController 4.0 / observations='..ctx.Observer.store.revision
             ..' / refreshes='..ctx.Observer.refreshes..' / cache hits='..ctx.Observer.hits
             ..' / recovery resumes='..controller.recoveries..' / timed reviews='..controller.reviews
-            ..'\nLive status: GUI adapter; parallel economic requests disabled; no headless game-data schema verified.'
+            ..'\nTransport: direct stands='..tostring(ctx.CONFIG.DirectUpgrades)..'; direct Powers/Buy='..tostring(ctx.CONFIG.DirectPurchases)
+            ..'; reset readiness and execution still use menus. Parallel stand batches require live acceptance.'
     end
 end

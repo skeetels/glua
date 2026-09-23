@@ -31,7 +31,7 @@ function __slctx.API.start()
     __slctx.S.route=__slctx.Strategy.new()
     if old then __slctx.S.route.spent=old.spent;__slctx.S.route.spentUnknown=old.spentUnknown;__slctx.S.route.models=old.models;__slctx.S.route.powerBase=old.powerBase;__slctx.S.route.powerUsed=old.powerUsed or __slctx.BN.new(0);__slctx.S.route.powerSkipped=old.powerSkipped or {};__slctx.S.route.blocked=old.blocked or {} end
     if old then
-        for _,key in ipairs({'timings','rebuildEstimate','powerBank','powerUnresolved','powerQuotes',
+        for _,key in ipairs({'timings','rebuildEstimate','powerBank','powerUnresolved','powerQuotes','directEpoch',
             'rebuildProfile','lastFullPass','failedTierHints','fullPassCount','powerPurchasePlan','capabilityPending',
             'recovery','rebuildLowerBound','previousHalo','savingsBudget','schema28','objectiveHistory','halo30','lastHaloEconomy32'}) do
             __slctx.S.route[key]=old[key]
@@ -107,8 +107,10 @@ for eventName,focused in pairs({WindowFocused=true,WindowFocusReleased=false}) d
 end
 __slctx.S.panel=__slctx.panel;__slctx.S.panelFrame=__slctx.frame;__slctx.S.panelVisibilityVersion=0
 __slctx.panel.Parent=__slctx.gui
-__slctx.log('LOADED','v4.0.4-dev; direct stand upgrades, Powers and ordinary Buy; reset menus remain; full live acceptance pending.')
-if __slctx.CONFIG.DirectUpgrades then print(__slctx.API.directReport())end
+__slctx.log('LOADED','v4.0.5-dev; direct stand upgrades, Powers and ordinary Buy; reset menus remain; full live acceptance pending.')
+if __slctx.CONFIG.DirectUpgrades then
+    for line in __slctx.API.directReport():gmatch('[^\n]+')do print(line)end
+end
 task.spawn(function()
     while not __slctx.S.unloaded do
         local yieldsBefore=__slctx.S.actionYieldSerial or 0

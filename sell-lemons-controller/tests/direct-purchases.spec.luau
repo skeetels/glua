@@ -26,7 +26,7 @@ local function fixture(mode)
     local function buy(target,key,isRemote,permanent)
         assert(isRemote==true and permanent==false,'ordinary Buy must not consume a forever purchase')
         calls[#calls+1]={'buy',key}
-        if mode=='reject' then error('server rejection')end
+        if mode=='reject' or values.attrs.reject then error('server rejection')end
         if mode=='silent' then return end
         local cost=c.GameBalance.PurchasePrices[key];assert(values.attrs.Cash>=cost)
         values.attrs.Cash=c.UpgradeMath.sub(values.attrs.Cash,cost);ledger.attrs[key]=true
@@ -44,7 +44,7 @@ local function fixture(mode)
     end
     c.DirectUpgrades={state=function()
         return {own=own,root=root,values=values,powers=powers,cash=values.attrs.Cash,shift=0,
-            epoch={Evolution=values.attrs.Evolution,Ascension=0,Rebirths=values.attrs.Rebirths}}
+            epoch={Evolution=values.attrs.Evolution,Ascension=0,Rebirths=values.attrs.Rebirths,TotalRebirths=values.attrs.TotalRebirths,TotalEvolves=values.attrs.TotalEvolves}}
     end}
     c.S={running=true,epoch=1,counts={buy=0}}
     c.now=function()return time end;c.live=function(epoch)return c.S.running and (not epoch or epoch==c.S.epoch)end
@@ -53,7 +53,9 @@ local function fixture(mode)
     c.readBuy=gui;c.ensureStrip=gui;c.manageTab=gui;c.ensureTablet=gui;c.focusCandidate=gui
     c.Powers={read=gui,proof=gui};c.HaloRun={tryBuyHold=gui}
     local route={blocked={},powerBase=c.BN.new(1,40),powerUsed=c.BN.new(0)}
-    c.Strategy={route=function()return route end,safePurchase=gui}
+    c.S.route=route
+    c.Strategy={route=function()return c.S.route end,safePurchase=gui,
+        new=function()return {phase='BOOT',blocked={},cards={},models={},bootEvolution=true,bootTablet=true,powerUsed=c.BN.new(0)}end}
     c.Safety={proof=gui,key=function(q)return q.path end,commit=function(rec)c.S.counts.buy=c.S.counts.buy+1;rec.committed=true end}
     local env=setmetatable({game={GetService=function(_,name)assert(name=='CollectionService');return {GetTagged=function(_,tag)assert(tag=='Tycoon.Purchase');return tagged end}end},
         task={spawn=function(fn)queue[#queue+1]=fn end,wait=function(dt)
@@ -97,3 +99,25 @@ assert(not c.DirectPurchases.powerPurchase(item) and #calls==0,'cumulative inves
 local c=fixture('silent-power');local item=c.Powers.read()[1]
 assert(not c.DirectPurchases.powerPurchase(item) and not c.Powers.proof(item))
 print('PASS exhausted Buy uses, special purchases, protected investor bank and missing power receipts block dispatch or success')
+local c,v,p,l,calls,_,o,r=fixture('ok')
+assert(c.DirectPurchases.refreshEpoch());v.attrs.reject=true
+assert(not c.Strategy.safePurchase(assert(c.readBuy())) and #calls==1 and next(r.blocked))
+c.S.running=true
+assert(c.DirectPurchases.refreshEpoch() and next(c.Strategy.route().blocked),'same-cycle error must remain blocked')
+v.attrs.Cash=8;assert(c.DirectPurchases.refreshEpoch() and next(c.Strategy.route().blocked),'wallet drop alone is not reset evidence')
+v.attrs.Evolution=nil
+assert(not c.DirectPurchases.refreshEpoch() and next(c.Strategy.route().blocked),'missing counters cannot clear a block')
+v.attrs.Evolution=3;c.S.actionPending={}
+assert(not c.DirectPurchases.refreshEpoch() and next(c.Strategy.route().blocked),'pending requests keep their lock even after reset')
+c.S.actionPending=nil;v.attrs.reject=nil
+assert(c.DirectPurchases.refreshEpoch())
+local fresh=c.Strategy.route()
+assert(fresh~=r and fresh.phase=='BOOT' and not next(fresh.blocked) and c.S.counts.buy==0 and #calls==1)
+assert(c.Strategy.safePurchase(assert(c.readBuy())) and #calls==2 and c.S.counts.buy==1,'new-cycle quote must remain usable after old disabled purchase')
+local c,v,_,_,_,_,_,r=fixture('ok');assert(c.DirectPurchases.refreshEpoch())
+local item=c.Powers.read()[1];r.powerUnresolved={item=item};r.powerUsed=c.BN.new(1,20)
+v.attrs.Rebirths=2;assert(c.DirectPurchases.refreshEpoch())
+local fresh=c.Strategy.route()
+assert(fresh.powerBase==r.powerBase and fresh.powerUsed==r.powerUsed and not fresh.powerUnresolved,'rebirth must retain the investor budget, while retiring previous-cycle outcomes')
+assert(c.DirectPurchases.refreshEpoch() and c.Strategy.route()==fresh,'same counter sample must not restart the route repeatedly')
+print('PASS rejected Buy followed by external evolution resumes with fresh quotes; uncertain counters and pending requests retain blocks; rebirth preserves spending budget')
