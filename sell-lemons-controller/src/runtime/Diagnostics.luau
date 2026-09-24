@@ -1,7 +1,7 @@
 -- Component initialized with an explicit shared service context.
 return function(__slctx)
 function __slctx.API.report()
-    local report={'SELL LEMONS CONTROLLER 4.0.20 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
+    local report={'SELL LEMONS CONTROLLER 4.0.21 DEV','Place='..game.PlaceId..'; version='..game.PlaceVersion,
         'Status='..__slctx.S.code..' | '..__slctx.S.status,'Cash='..__slctx.t(__slctx.paths.balance),
         'Last error='..__slctx.S.lastError,'firesignal tested='..tostring(__slctx.Driver.fire~=nil),
         'getconnections tested='..tostring(__slctx.Driver.connections~=nil),
@@ -150,7 +150,7 @@ function __slctx.API.report()
     local base=__slctx.previousReport30();local h=__slctx.HaloRun.state();local f=h.forecast;local m=h.book.model
     local text,fraction,eta,progress=__slctx.HaloRun.progress()
     local economic=progress.economy or {}
-    local out={ '--- HALO ROUTE ECONOMY 4.0.20 ---',
+    local out={ '--- HALO ROUTE ECONOMY 4.0.21 ---',
         'HALO_MODE='..h.mode..'; halo='..tostring(h.book.halo)..'; evolution='..tostring(h.book.evolution),
         'HALO_READINESS fraction='..tostring(fraction)..'; type=route-income-capacity; bar is explicitly logarithmic, NOT percent of elapsed time',
         'REQUIRED_INCOME='..__slctx.BN.format(economic.requiredRate)..'; CURRENT_INCOME='..__slctx.BN.format(economic.currentRate)

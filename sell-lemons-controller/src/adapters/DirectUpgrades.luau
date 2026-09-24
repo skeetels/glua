@@ -19,7 +19,7 @@ return function(ctx)
         if type(reader)~='function' then D.reason='BYTECODE_IDENTITY_UNAVAILABLE';return false,D.reason end
         local rs=game:GetService('ReplicatedStorage')
         for _,spec in ipairs({
-            {'Balance',340421,914084511},{'Config',19699,154165715},
+            {'Balance',340421,914084511},{'Config',19699,282416287},
             {'Modules.Huge',8091,539421471},
             {'Modules.Tycoon.Component.TycoonValues',1214,285065225},
             {'Modules.Tycoon.Entity.TycoonEarner',5781,1426949448},
@@ -37,7 +37,18 @@ return function(ctx)
         })do
             local object=rs;for part in spec[1]:gmatch('[^.]+')do object=child(object,part)end
             local ok,bytes=pcall(reader,object)
-            if not ok or type(bytes)~='string' or #bytes~=spec[2] or adler(bytes)~=spec[3] then
+            -- Config 1.5.0 -> 1.5.1 changed only the patch-version digit and
+            -- its 24-byte compiler digest. The entire executable bytecode and
+            -- all economy constants stayed identical. Ignore only those bytes;
+            -- every other module still requires its exact inspected identity.
+            local unchanged=ok and type(bytes)=='string' and #bytes==spec[2]
+            if unchanged and spec[1]=='Config' then
+                unchanged=bytes:sub(18,21)=='1.5.' and bytes:byte(22)>=48 and bytes:byte(22)<=57
+                    and adler(bytes:sub(1,21)..bytes:sub(23,-25))==spec[3]
+            elseif unchanged then
+                unchanged=adler(bytes)==spec[3]
+            end
+            if not unchanged then
                 D.reason='GAME_DATA_CHANGED '..spec[1];return false,D.reason
             end
         end
