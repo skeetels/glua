@@ -16,6 +16,16 @@ if type(getgenv)=='function' then
     if ok and type(e)=='table' then __slctx.env=e end
 end
 __slctx.previousCycleState=nil
+local evolutionOnly=__slctx.env.SLEvolutionOnly
+if type(evolutionOnly)=='table' then
+    if evolutionOnly.pending then
+        error('[SL Farm] Evolution-only reset is unresolved or still running; a second worker was not created.')
+    end
+    if evolutionOnly.active and type(evolutionOnly.stop)=='function' then
+        evolutionOnly.stop()
+        task.wait(0.1)
+    end
+end
 assert(not (__slctx.env.SLDirectProbe and __slctx.env.SLDirectProbe.active),'[SL Farm] Direct probe is still pending; no second worker created.')
 if __slctx.env.SLAutofarm and type(__slctx.env.SLAutofarm.exportCycleState)=='function' then
     local ok,state=pcall(__slctx.env.SLAutofarm.exportCycleState)

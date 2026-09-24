@@ -1,4 +1,8 @@
 local mock=require('./mock-engine')()
+local oldEvolutionStopped=false
+mock.globals.SLEvolutionOnly={active=true,pending=false,stop=function()
+    oldEvolutionStopped=true;mock.globals.SLEvolutionOnly.active=false
+end}
 local ctx={}
 do local initialize=require('../src/config');setfenv(initialize,mock.env);initialize(ctx) end
 ctx.CONFIG.RepeatRebirth=false;ctx.CONFIG.HaloSprint=false;ctx.CONFIG.AutoEvolution=true -- Exercise the older evolution route separately.
@@ -13,6 +17,7 @@ do local initialize=require('../src/core/GoalPlanner');setfenv(initialize,mock.e
 do local initialize=require('../src/core/ObservationStore');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/core/RecoveryPolicy');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/ClientContext');setfenv(initialize,mock.env);initialize(ctx) end
+assert(oldEvolutionStopped,'loading the main controller must stop evolution-only mode')
 do local initialize=require('../src/adapters/GuiAccess');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/adapters/VirtualInput');setfenv(initialize,mock.env);initialize(ctx) end
 do local initialize=require('../src/runtime/Focus');setfenv(initialize,mock.env);initialize(ctx) end

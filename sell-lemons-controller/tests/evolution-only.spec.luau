@@ -1,6 +1,9 @@
 local function runCase(advanceCounters,changeBeforeDispatch)
     local fakeNow=0
     local envTable={}
+    local mainUnloads=0
+    envTable.SLAutofarm={callbackPending=function()return false end,
+        unload=function()mainUnloads=mainUnloads+1 end}
     local player={UserId=7}
     local values={attrs={Evolution=0,Ascension=945,Rebirths=2,TotalRebirths=2757,TotalEvolves=1387,
         Cash=100,CashSpent='0',Investors='0',InvestorsSpent='0'}}
@@ -52,6 +55,7 @@ local function runCase(advanceCounters,changeBeforeDispatch)
     setfenv(start,mockEnv)
     local api=start(ctx)
     assert(api.active and spawned==1 and remote.calls==0,'startup must not send an action')
+    assert(mainUnloads==1,'evolution-only mode must unload the ordinary controller')
     return api,remote,values,envTable,logs
 end
 

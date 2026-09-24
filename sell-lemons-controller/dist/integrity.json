@@ -1,5 +1,5 @@
 {
-  "bundle_sha256": "6a6268d323d7a65ed6cd7a17ebf27709c90e54028c1143d1655d74228a424951",
+  "bundle_sha256": "c965eccde17f34b32b0e453b1901cf9c3efa478f1e28ffc13d111a3d1b1e8f27",
   "modules": {
     "src/config.luau": "5b7e6d12788a681df5efd276a0a400be3af99f9c5b8ed27daf2c37e0ed888bba",
     "src/core/Numeric.luau": "f0c46d0b3adf60d7f8679868f81a914cf2d861da86100dc4e250db88b82f8184",
@@ -12,7 +12,7 @@
     "src/core/GoalPlanner.luau": "b0076d0896c6e5c07da6c11fee8a2294286fd2677fd595f2d0d126733bf106fe",
     "src/core/ObservationStore.luau": "2d73776d5115e5715f4633dd4651cd0d624b317e878d20478f44b971cd46d58b",
     "src/core/RecoveryPolicy.luau": "3b1c2f805e300caebdd0fc591a96120f6f8cc670280515858498a1fc45219b5b",
-    "src/runtime/ClientContext.luau": "b3f78ad4f2fec5f33600aecbb42dbf92d168de1dcc47e1d687bcecd301034704",
+    "src/runtime/ClientContext.luau": "206967a12c5e8a64855e310ace19e7047d8f2a7841e85bff256d6a6a884b2acc",
     "src/adapters/GuiAccess.luau": "eb2c086e607c8a354b77f8d30d9a4893bc2293e0024604eefc078726b5c087bf",
     "src/adapters/VirtualInput.luau": "f137d029dec891fa6f4809d62b30ae4f2135f22795ffc5e05e94db132ed43497",
     "src/runtime/Focus.luau": "f108e7b83c6ea7519e817ef5200b3ab5dbc92f410b3c8f3acfe8062a137d54f6",
